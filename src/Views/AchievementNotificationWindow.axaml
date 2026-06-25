@@ -1,0 +1,45 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="TinyTrophy.Views.AchievementNotificationWindow"
+	Title="Achievement Unlocked"
+	Width="340"
+	Height="96"
+	CanResize="False"
+	WindowDecorations="None"
+	ShowInTaskbar="False"
+	ShowActivated="False"
+	Topmost="True"
+	WindowStartupLocation="Manual"
+	Background="Transparent"
+	TransparencyLevelHint="Transparent"
+	Opacity="0">
+	<Border Background="#e6171d25" BorderBrush="#66c0f4" BorderThickness="1" CornerRadius="6" Padding="12" Margin="4">
+		<Grid ColumnDefinitions="64,*">
+			<Border Grid.Column="0" Width="64" Height="64" CornerRadius="4" ClipToBounds="True" Background="#1c2b3c">
+				<Image
+					x:Name="AchievementIcon"
+					Stretch="UniformToFill" />
+			</Border>
+			<StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+				<TextBlock
+					Text="ACHIEVEMENT UNLOCKED"
+					FontSize="10"
+					FontWeight="Bold"
+					Foreground="#66c0f4"
+					Margin="0,0,0,2" />
+				<TextBlock
+					x:Name="AchievementName"
+					FontSize="14"
+					FontWeight="SemiBold"
+					Foreground="#ffffff"
+					TextTrimming="CharacterEllipsis" />
+				<TextBlock
+					x:Name="AchievementDescription"
+					FontSize="11"
+					Foreground="#8f98a0"
+					TextTrimming="CharacterEllipsis" />
+			</StackPanel>
+		</Grid>
+	</Border>
+</Window>

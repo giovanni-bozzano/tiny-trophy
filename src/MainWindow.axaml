@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:vm="using:TinyTrophy.ViewModels"
+		xmlns:views="using:TinyTrophy.Views"
+		mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="680"
+		x:Class="TinyTrophy.MainWindow"
+		x:DataType="vm:MainViewModel"
+		Title="TinyTrophy"
+		Width="1024" Height="680"
+		MinWidth="800" MinHeight="500"
+		Background="#1b2838">
+	<Grid RowDefinitions="Auto,Auto,*">
+		<!-- Navigation Bar -->
+		<Border Grid.Row="0" Background="#101821" Padding="8,6" IsVisible="{Binding ShowNavBar}">
+			<Grid ColumnDefinitions="Auto,*,Auto">
+				<!-- Back Button -->
+				<Button
+					Grid.Column="0"
+					Classes="nav"
+					Content="&#x2190; Back"
+					Command="{Binding GoBackCommand}"
+					IsVisible="{Binding CanGoBack}" />
+				<!-- Spacer -->
+				<Border Grid.Column="1"/>
+				<!-- Toolbar Buttons -->
+				<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+					<Button
+						Classes="nav"
+						Content="&#x21BB; Refresh"
+						Command="{Binding RefreshMetadataCommand}" />
+					<Button
+						Classes="nav"
+						Content="Settings"
+						Command="{Binding OpenSettingsCommand}" />
+				</StackPanel>
+			</Grid>
+		</Border>
+		<!-- API Key Warning -->
+		<Border Grid.Row="1" Background="#5e1a1a" Padding="12,8" IsVisible="{Binding ApiKeyWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+			<TextBlock
+				Text="{Binding ApiKeyWarning}"
+				Foreground="#ff6b6b"
+				FontSize="12"
+				TextWrapping="Wrap"
+				HorizontalAlignment="Center" />
+		</Border>
+		<!-- Content Area -->
+		<ContentControl Grid.Row="2" Content="{Binding CurrentView}">
+			<ContentControl.DataTemplates>
+				<DataTemplate DataType="vm:HomeViewModel">
+					<views:HomeView/>
+				</DataTemplate>
+				<DataTemplate DataType="vm:GameDetailViewModel">
+					<views:GameDetailView/>
+				</DataTemplate>
+				<DataTemplate DataType="vm:SettingsViewModel">
+					<views:SettingsView/>
+				</DataTemplate>
+				<DataTemplate DataType="vm:InitialSetupViewModel">
+					<views:InitialSetupView/>
+				</DataTemplate>
+			</ContentControl.DataTemplates>
+		</ContentControl>
+	</Grid>
+</Window>

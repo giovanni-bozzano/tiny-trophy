@@ -1,0 +1,219 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:TinyTrophy.ViewModels"
+	x:Class="TinyTrophy.Views.SettingsView"
+	x:DataType="vm:SettingsViewModel">
+	<ScrollViewer>
+		<StackPanel Margin="24" Spacing="20" MaxWidth="700">
+			<!-- Header -->
+			<TextBlock
+				Text="Settings"
+				FontSize="24"
+				FontWeight="Bold"
+				Foreground="#d9dfe4" />
+			<!-- Achievement Display Section -->
+			<Border Classes="panel" Padding="16">
+				<StackPanel Spacing="12">
+					<TextBlock
+						Classes="section-header"
+						Text="Achievement Display" />
+					<CheckBox
+						Content="Show hidden achievements"
+						IsChecked="{Binding ShowHidden}" />
+					<CheckBox
+						Content="Merge duplicate achievements from multiple sources"
+						IsChecked="{Binding MergeDuplicates}" />
+					<CheckBox
+						Content="Hide games with 0% completion"
+						IsChecked="{Binding HideZeroPercent}" />
+				</StackPanel>
+			</Border>
+			<!-- Achievement Sources Section -->
+			<Border Classes="panel" Padding="16">
+				<StackPanel Spacing="12">
+					<TextBlock
+						Classes="section-header"
+						Text="Achievement Sources" />
+					<TextBlock
+						Text="Enable or disable default folders, or add your own custom paths."
+						Foreground="#8f98a0"
+						FontSize="12"
+						TextWrapping="Wrap" />
+					<CheckBox
+						Content="Scan Steam official achievements"
+						IsChecked="{Binding SteamOfficialEnabled}" />
+					<CheckBox
+						Content="Scan ShadPS4 trophies"
+						IsChecked="{Binding ShadPs4Enabled}" />
+					<!-- Folder list -->
+					<ItemsControl ItemsSource="{Binding WatchedFolders}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate x:DataType="vm:FolderItemViewModel">
+								<Border Padding="8,6" Margin="0,2" CornerRadius="4" Background="#1e2a35">
+									<Grid ColumnDefinitions="Auto,*,Auto">
+										<CheckBox
+											Grid.Column="0"
+											IsChecked="{Binding Enabled}"
+											VerticalAlignment="Center" />
+										<StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+											<TextBlock
+												Text="{Binding Label}"
+												FontWeight="SemiBold"
+												Foreground="#d9dfe4" />
+											<TextBlock
+												Text="{Binding Path}"
+												FontSize="11"
+												Foreground="#6b7c8d"
+												TextTrimming="CharacterEllipsis" />
+										</StackPanel>
+										<Button
+											Grid.Column="2"
+											Content="✕"
+											FontSize="12"
+											Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveFolderCommand}"
+											CommandParameter="{Binding}"
+											IsVisible="{Binding !IsDefault}"
+											VerticalAlignment="Center"
+											Padding="6,2"
+											Margin="4,0,0,0" />
+									</Grid>
+								</Border>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+					<!-- Add custom folder -->
+					<Border Padding="8" CornerRadius="4" Background="#1a2530" Margin="0,8,0,0">
+						<StackPanel Spacing="8">
+							<TextBlock
+								Text="Add Custom Folder"
+								FontSize="12"
+								Foreground="#8f98a0" />
+							<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+								<TextBox
+									Grid.Row="0"
+									Grid.Column="0"
+									Grid.ColumnSpan="2"
+									Classes="search"
+									Text="{Binding NewFolderPath}"
+									PlaceholderText="Folder path (e.g. C:\MyEmu\saves)" />
+								<TextBox
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,6,8,0"
+									Classes="search"
+									Text="{Binding NewFolderLabel}"
+									PlaceholderText="Label (optional)" />
+								<Button
+									Grid.Row="1"
+									Grid.Column="1"
+									Margin="0,6,0,0"
+									Content="Add"
+									Command="{Binding AddFolderCommand}" />
+							</Grid>
+						</StackPanel>
+					</Border>
+				</StackPanel>
+			</Border>
+			<!-- Notifications Section -->
+			<Border Classes="panel" Padding="16">
+				<StackPanel Spacing="12">
+					<TextBlock
+						Classes="section-header"
+						Text="Notifications" />
+					<CheckBox
+						Content="Enable achievement unlock notifications"
+						IsChecked="{Binding NotificationsEnabled}" />
+					<CheckBox
+						Content="Play notification sound"
+						IsChecked="{Binding NotificationSound}" />
+				</StackPanel>
+			</Border>
+			<!-- Advanced Section -->
+			<Border Classes="panel" Padding="16">
+				<StackPanel Spacing="12">
+					<TextBlock
+						Classes="section-header"
+						Text="Advanced" />
+					<Grid ColumnDefinitions="*,Auto">
+						<CheckBox
+							Grid.Column="0"
+							Content="Check for updates on startup"
+							IsChecked="{Binding CheckForUpdates}" />
+						<Button
+							Grid.Column="1"
+							Content="Check Now"
+							HorizontalAlignment="Left"
+							Command="{Binding CheckForUpdateCommand}" />
+					</Grid>
+					<StackPanel Spacing="4">
+						<TextBlock
+							Text="Steam Web API Key"
+							Foreground="#8f98a0"
+							FontSize="12" />
+						<TextBox
+							Classes="search"
+							Text="{Binding SteamApiKey}"
+							PlaceholderText="Enter your Steam API key..."
+							PasswordChar="*" />
+						<HyperlinkButton
+							NavigateUri="https://steamcommunity.com/dev/apikey"
+							FontSize="12"
+							Foreground="#66c0f4"
+							Padding="0"
+							Content="Get your free key at steamcommunity.com/dev/apikey" />
+					</StackPanel>
+					<StackPanel Spacing="4">
+						<TextBlock
+							Text="Steam ID"
+							Foreground="#8f98a0"
+							FontSize="12" />
+						<TextBox
+							Classes="search"
+							Text="{Binding SteamId}"
+							PlaceholderText="Your 64-bit Steam ID (e.g. 76561198...)" />
+						<TextBlock
+							Text="Enables tracking your official Steam achievements."
+							Foreground="#6b7c8d"
+							FontSize="11"
+							TextWrapping="Wrap" />
+						<HyperlinkButton
+							NavigateUri="https://steamid.io"
+							FontSize="12"
+							Foreground="#66c0f4"
+							Padding="0"
+							Content="Find yours at https://steamid.io" />
+					</StackPanel>
+					<StackPanel Spacing="4">
+						<TextBlock
+							Text="Language"
+							Foreground="#8f98a0"
+							FontSize="12" />
+						<ComboBox
+							ItemsSource="{Binding AvailableLanguages}"
+							SelectedItem="{Binding Language}"
+							MinWidth="200" />
+					</StackPanel>
+				</StackPanel>
+			</Border>
+			<!-- Status Message -->
+			<TextBlock
+				Text="{Binding StatusMessage}"
+				Foreground="#4caf50"
+				FontSize="13"
+				IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				HorizontalAlignment="Center" />
+			<!-- Action Buttons -->
+			<StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+				<Button
+					Classes="secondary"
+					Content="Reset Defaults"
+					Command="{Binding ResetDefaultsCommand}" />
+				<Button
+					Classes="primary"
+					Content="Save Settings"
+					Command="{Binding SaveSettingsCommand}" />
+			</StackPanel>
+		</StackPanel>
+	</ScrollViewer>
+</UserControl>

@@ -1,0 +1,124 @@
+<Styles
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+	<Style Selector="Window">
+		<Setter Property="Background" Value="#1b2838" />
+		<Setter Property="Foreground" Value="#d9dfe4" />
+	</Style>
+	<Style Selector="TextBox.search">
+		<Setter Property="Background" Value="#1c2b3c" />
+		<Setter Property="BorderBrush" Value="#24374c" />
+		<Setter Property="Foreground" Value="#d9dfe4" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="8,0" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Height" Value="30" />
+		<Setter Property="MinHeight" Value="0" />
+		<Setter Property="VerticalContentAlignment" Value="Center" />
+	</Style>
+	<Style Selector="Button.nav">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#8f98a0" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Padding" Value="8,4" />
+		<Setter Property="Cursor" Value="Hand" />
+	</Style>
+	<Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#2a475e" />
+		<Setter Property="Foreground" Value="#ffffff" />
+	</Style>
+	<Style Selector="Border.game-card">
+		<Setter Property="Background" Value="#1c2b3c" />
+		<Setter Property="BorderBrush" Value="#24374c" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+	</Style>
+	<Style Selector="Border.game-card:pointerover">
+		<Setter Property="BorderBrush" Value="#66c0f4" />
+		<Setter Property="Background" Value="#213d57" />
+	</Style>
+	<Style Selector="Border.ach-card">
+		<Setter Property="Background" Value="#1c2b3c" />
+		<Setter Property="BorderBrush" Value="#24374c" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+	</Style>
+	<Style Selector="Border.ach-item">
+		<Setter Property="Background" Value="#1c2b3c" />
+		<Setter Property="BorderBrush" Value="#24374c" />
+		<Setter Property="BorderThickness" Value="0,0,0,1" />
+		<Setter Property="Padding" Value="10" />
+	</Style>
+	<Style Selector="TextBlock.section-header">
+		<Setter Property="FontSize" Value="16" />
+		<Setter Property="FontWeight" Value="Bold" />
+		<Setter Property="Foreground" Value="#66c0f4" />
+		<Setter Property="Margin" Value="0,10,0,5" />
+	</Style>
+	<Style Selector="ProgressBar.completion">
+		<Setter Property="Height" Value="6" />
+		<Setter Property="Background" Value="#27374a" />
+		<Setter Property="Foreground" Value="#66c0f4" />
+		<Setter Property="CornerRadius" Value="3" />
+	</Style>
+	<Style Selector="Border.title-bar">
+		<Setter Property="Background" Value="#101821" />
+		<Setter Property="Height" Value="34" />
+	</Style>
+	<Style Selector="Border.panel">
+		<Setter Property="Background" Value="#15202d" />
+		<Setter Property="BorderBrush" Value="#24374c" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+	</Style>
+	<Style Selector="CheckBox">
+		<Setter Property="Foreground" Value="#d9dfe4" />
+	</Style>
+	<Style Selector="Button.primary">
+		<Setter Property="Background" Value="#1a9fff" />
+		<Setter Property="Foreground" Value="#ffffff" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="16,8" />
+		<Setter Property="FontWeight" Value="Bold" />
+		<Setter Property="Cursor" Value="Hand" />
+	</Style>
+	<Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#66c0f4" />
+	</Style>
+	<Style Selector="Button.secondary">
+		<Setter Property="Background" Value="#27374a" />
+		<Setter Property="Foreground" Value="#d9dfe4" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="16,8" />
+		<Setter Property="Cursor" Value="Hand" />
+	</Style>
+	<Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#354b65" />
+	</Style>
+	<Style Selector="TextBlock.empty-state">
+		<Setter Property="Foreground" Value="#6b7c8d" />
+		<Setter Property="FontSize" Value="18" />
+		<Setter Property="HorizontalAlignment" Value="Center" />
+		<Setter Property="TextAlignment" Value="Center" />
+	</Style>
+	<Style Selector="Button.sort">
+		<Setter Property="Background" Value="#1c2b3c" />
+		<Setter Property="Foreground" Value="#8f98a0" />
+		<Setter Property="BorderBrush" Value="#24374c" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="12,0" />
+		<Setter Property="FontSize" Value="12" />
+		<Setter Property="FontWeight" Value="Bold" />
+		<Setter Property="Height" Value="30" />
+		<Setter Property="VerticalContentAlignment" Value="Center" />
+		<Setter Property="Cursor" Value="Hand" />
+	</Style>
+	<Style Selector="Button.sort:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#2a475e" />
+		<Setter Property="Foreground" Value="#d9dfe4" />
+	</Style>
+</Styles>

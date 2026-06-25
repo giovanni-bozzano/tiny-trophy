@@ -1,0 +1,54 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	x:Class="TinyTrophy.Views.UpdateDialog"
+	Title="Update Available"
+	Width="440"
+	SizeToContent="Height"
+	CanResize="False"
+	WindowStartupLocation="CenterOwner"
+	Background="#1b2838">
+	<Border Margin="24" CornerRadius="4">
+		<StackPanel Spacing="16">
+			<TextBlock
+				Text="A new version is available!"
+				FontSize="18"
+				FontWeight="Bold"
+				Foreground="#66c0f4" />
+			<TextBlock
+				x:Name="VersionText"
+				Foreground="#8f98a0"
+				FontSize="13" />
+			<HyperlinkButton
+				x:Name="ReleaseLink"
+				Foreground="#66c0f4"
+				FontSize="12"
+				Padding="0" />
+			<StackPanel x:Name="ProgressPanel" Spacing="6" IsVisible="False">
+				<TextBlock
+					x:Name="StatusText"
+					Foreground="#8f98a0"
+					FontSize="12" />
+				<ProgressBar
+					x:Name="DownloadProgress"
+					Classes="completion"
+					Minimum="0"
+					Maximum="100"
+					Value="0"
+					Height="8" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,12,0,0">
+				<Button
+					x:Name="SkipButton"
+					Classes="secondary"
+					Content="Skip"
+					Click="OnSkipClicked" />
+				<Button
+					x:Name="DownloadButton"
+					Classes="primary"
+					Content="Update"
+					Click="OnDownloadClicked" />
+			</StackPanel>
+		</StackPanel>
+	</Border>
+</Window>

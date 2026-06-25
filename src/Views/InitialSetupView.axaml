@@ -1,0 +1,69 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:TinyTrophy.ViewModels"
+	x:Class="TinyTrophy.Views.InitialSetupView"
+	x:DataType="vm:InitialSetupViewModel">
+	<Border Background="#1b2838" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+		<StackPanel MaxWidth="480" Spacing="16" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="32">
+			<TextBlock
+				Text="Welcome to TinyTrophy"
+				FontSize="24"
+				FontWeight="Bold"
+				Foreground="#d9dfe4"
+				HorizontalAlignment="Center"
+				Margin="0,0,0,12" />
+			<StackPanel Spacing="6">
+				<TextBlock
+					Text="Steam Web API Key"
+					Foreground="#8f98a0"
+					FontSize="12"
+					FontWeight="Bold" />
+				<TextBox
+					Classes="search"
+					Text="{Binding ApiKey}"
+					PlaceholderText="Enter your Steam API key..."
+					PasswordChar="*" />
+				<TextBlock
+					Text="Lets TinyTrophy fetch achievement metadata from Steam."
+					Foreground="#6b7c8d"
+					FontSize="11"
+					TextWrapping="Wrap" />
+				<HyperlinkButton
+					NavigateUri="https://steamcommunity.com/dev/apikey"
+					FontSize="12"
+					Foreground="#66c0f4"
+					Padding="0"
+					Content="Get your free key at steamcommunity.com/dev/apikey" />
+			</StackPanel>
+			<StackPanel Spacing="6">
+				<TextBlock
+					Text="Steam ID (optional)"
+					Foreground="#8f98a0"
+					FontSize="12" />
+				<TextBox
+					Classes="search"
+					Text="{Binding SteamId}"
+					PlaceholderText="Your 64-bit Steam ID (e.g. 76561198...)" />
+				<TextBlock
+					Text="Enables tracking your official Steam achievements."
+					Foreground="#6b7c8d"
+					FontSize="11"
+					TextWrapping="Wrap" />
+				<HyperlinkButton
+					NavigateUri="https://steamid.io"
+					FontSize="12"
+					Foreground="#66c0f4"
+					Padding="0"
+					Content="Find yours at https://steamid.io" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" Margin="0,8,0,0">
+				<Button
+					Content="Continue"
+					MinWidth="80"
+					Classes="primary"
+					Command="{Binding SaveCommand}" />
+			</StackPanel>
+		</StackPanel>
+	</Border>
+</UserControl>
