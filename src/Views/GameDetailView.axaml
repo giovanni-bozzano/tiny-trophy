@@ -1,0 +1,185 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:TinyTrophy.ViewModels"
+	xmlns:asyncImageLoader="using:AsyncImageLoader"
+	x:Class="TinyTrophy.Views.GameDetailView"
+	x:DataType="vm:GameDetailViewModel"
+	Focusable="True">
+	<Grid RowDefinitions="Auto,Auto,Auto,*">
+		<!-- Game Header (mirrors profile bar height/padding) -->
+		<Border Grid.Row="0" Padding="16,14" Background="#15202d" Height="88">
+			<Grid ColumnDefinitions="Auto,*">
+				<Border Grid.Column="0" Width="160" Height="60" CornerRadius="4" ClipToBounds="True" Background="#27374a" Margin="0,0,14,0">
+					<Image
+						asyncImageLoader:ImageLoader.Source="{Binding GameImageUri}"
+						Stretch="UniformToFill" />
+				</Border>
+				<StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+					<TextBlock
+						Text="{Binding GameName}"
+						FontSize="20"
+						FontWeight="Bold"
+						Foreground="#d9dfe4"
+						TextTrimming="CharacterEllipsis" />
+					<TextBlock
+						Text="{Binding GameAppId, StringFormat='App ID: {0}'}"
+						FontSize="11"
+						Foreground="#6b7c8d" />
+					<Grid ColumnDefinitions="*,Auto" MaxWidth="340" HorizontalAlignment="Left" Margin="0,2,0,0">
+						<ProgressBar
+							Grid.Column="0"
+							Classes="completion"
+							Value="{Binding CompletionPercentage}"
+							Maximum="100"
+							Height="6" />
+						<TextBlock Grid.Column="1" Margin="10,0,0,0" FontSize="13" Foreground="#66c0f4" VerticalAlignment="Center">
+							<TextBlock.Text>
+								<MultiBinding StringFormat="{}{0}/{1} ({2:F0}%)">
+									<Binding Path="UnlockedCount" />
+									<Binding Path="TotalCount" />
+									<Binding Path="CompletionPercentage" />
+								</MultiBinding>
+							</TextBlock.Text>
+						</TextBlock>
+					</Grid>
+				</StackPanel>
+			</Grid>
+		</Border>
+		<!-- Search and Sort Bar (same as HomeView) -->
+		<Border Grid.Row="1" Padding="16,10" Background="#1b2838">
+			<Grid ColumnDefinitions="*,Auto">
+				<TextBox
+					Grid.Column="0"
+					Classes="search"
+					Text="{Binding SearchText}"
+					PlaceholderText="Search achievements..."
+					Margin="0,0,10,0" />
+				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Stretch">
+					<Button
+						Classes="sort"
+						Content="{Binding AlphabeticalSortLabel}"
+						Command="{Binding SortAlphabeticalCommand}" />
+					<Button
+						Classes="sort"
+						Content="{Binding RaritySortLabel}"
+						Command="{Binding SortByRarityCommand}" />
+					<Button
+						Classes="sort"
+						Content="{Binding TimeSortLabel}"
+						Command="{Binding SortByTimeCommand}" />
+				</StackPanel>
+			</Grid>
+		</Border>
+		<!-- Section Counts -->
+		<Border Grid.Row="2" Background="#1b2838" Padding="20,4">
+			<StackPanel Orientation="Horizontal" Spacing="16">
+				<TextBlock Classes="section-header" VerticalAlignment="Center" FontSize="12" Margin="0">
+					<TextBlock.Text>
+						<MultiBinding StringFormat="Unlocked ({0})">
+							<Binding Path="UnlockedAchievements.Count" />
+						</MultiBinding>
+					</TextBlock.Text>
+				</TextBlock>
+				<TextBlock
+					Text="|"
+					Foreground="#24374c"
+					VerticalAlignment="Center" />
+				<TextBlock Foreground="#6b7c8d" VerticalAlignment="Center" FontSize="12">
+					<TextBlock.Text>
+						<MultiBinding StringFormat="Locked ({0})">
+							<Binding Path="LockedAchievements.Count" />
+						</MultiBinding>
+					</TextBlock.Text>
+				</TextBlock>
+			</StackPanel>
+		</Border>
+		<!-- Achievement Lists (single virtualized ListBox) -->
+		<Border Grid.Row="3" Classes="panel" Margin="16,8,16,16">
+			<ListBox ItemsSource="{Binding DisplayAchievements}" Background="Transparent" Margin="8,8,0,8" Padding="0,0,8,0" SelectionMode="Single" SelectedItem="{x:Null}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+				<ListBox.Styles>
+					<Style Selector="ListBoxItem">
+						<Setter
+							Property="Padding"
+							Value="0" />
+						<Setter
+							Property="Margin"
+							Value="0" />
+						<Setter
+							Property="Background"
+							Value="Transparent" />
+					</Style>
+					<Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+						<Setter
+							Property="Background"
+							Value="Transparent" />
+					</Style>
+					<Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+						<Setter
+							Property="Background"
+							Value="Transparent" />
+					</Style>
+				</ListBox.Styles>
+				<ListBox.ItemTemplate>
+					<DataTemplate x:DataType="vm:AchievementItemViewModel">
+						<Border Classes="ach-card" Margin="0,3" Background="{Binding CardBackground}" Opacity="{Binding CardOpacity}">
+							<Grid ColumnDefinitions="60,*,Auto" MinHeight="60">
+								<!-- Icon -->
+								<Border Grid.Column="0" Background="{Binding IconBackground}" CornerRadius="4,0,0,4" ClipToBounds="True">
+									<Grid>
+										<Image
+											asyncImageLoader:ImageLoader.Source="{Binding DisplayIconUri}"
+											Stretch="UniformToFill"
+											IsVisible="{Binding !IsMasked}" />
+										<!-- Lock placeholder for masked hidden achievements -->
+										<Path
+											IsVisible="{Binding IsMasked}"
+											Data="M12,1A5,5 0 0,0 7,6V8H6A2,2 0 0,0 4,10V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V10A2,2 0 0,0 18,8H17V6A5,5 0 0,1 12,1M12,3A3,3 0 0,1 15,6V8H9V6A3,3 0 0,1 12,3M12,13A2,2 0 0,1 14,15A2,2 0 0,1 12,17A2,2 0 0,1 10,15A2,2 0 0,1 12,13Z"
+											Fill="#3d5068"
+											Width="22"
+											Height="22"
+											Stretch="Uniform"
+											HorizontalAlignment="Center"
+											VerticalAlignment="Center" />
+									</Grid>
+								</Border>
+								<!-- Name + Description -->
+								<StackPanel Grid.Column="1" Margin="16,10" Spacing="3" VerticalAlignment="Center">
+									<TextBlock
+										Text="{Binding DisplayName}"
+										FontSize="14"
+										FontWeight="SemiBold"
+										Foreground="{Binding NameForeground}"
+										TextTrimming="CharacterEllipsis"
+										MaxLines="1" />
+									<TextBlock
+										Text="{Binding DisplayDescription}"
+										FontSize="12"
+										Foreground="{Binding DescriptionForeground}"
+										TextTrimming="CharacterEllipsis"
+										MaxLines="1"
+										IsVisible="{Binding DisplayDescription, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+								</StackPanel>
+								<!-- Unlock time + Rarity (right column) -->
+								<StackPanel Grid.Column="2" Margin="12,10" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Right" IsVisible="{Binding !IsMasked}">
+									<TextBlock
+										Text="{Binding UnlockTimeText}"
+										FontSize="11"
+										Foreground="#6b7c8d"
+										HorizontalAlignment="Right"
+										IsVisible="{Binding UnlockTimeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+									<TextBlock
+										Text="{Binding RarityLabel}"
+										FontSize="11"
+										Foreground="{Binding RarityColor}"
+										HorizontalAlignment="Right"
+										IsVisible="{Binding RarityLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+								</StackPanel>
+							</Grid>
+						</Border>
+					</DataTemplate>
+				</ListBox.ItemTemplate>
+			</ListBox>
+		</Border>
+	</Grid>
+</UserControl>

@@ -1,0 +1,233 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:TinyTrophy.ViewModels"
+	xmlns:asyncImageLoader="using:AsyncImageLoader"
+	x:Class="TinyTrophy.Views.HomeView"
+	x:DataType="vm:HomeViewModel"
+	Focusable="True">
+	<Grid RowDefinitions="Auto,Auto,*">
+		<!-- Stats Bar -->
+		<Border Grid.Row="0" Padding="16,0" Background="#15202d" Height="88">
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="32">
+				<StackPanel HorizontalAlignment="Center" Spacing="2">
+					<TextBlock
+						Text="{Binding StatsAchievements}"
+						FontSize="22" FontWeight="Bold"
+						Foreground="#d9dfe4"
+						HorizontalAlignment="Center" />
+					<TextBlock
+						Text="achievements"
+						Foreground="#6b7c8d"
+						FontSize="11"
+						HorizontalAlignment="Center" />
+				</StackPanel>
+				<StackPanel HorizontalAlignment="Center" Spacing="2">
+					<TextBlock
+						Text="{Binding StatsPerfect}"
+						FontSize="22"
+						FontWeight="Bold"
+						Foreground="#66c0f4"
+						HorizontalAlignment="Center" />
+					<TextBlock
+						Text="perfect"
+						Foreground="#6b7c8d"
+						FontSize="11"
+						HorizontalAlignment="Center" />
+				</StackPanel>
+				<StackPanel HorizontalAlignment="Center" Spacing="2">
+					<TextBlock
+						Text="{Binding StatsGames}"
+						FontSize="22"
+						FontWeight="Bold"
+						Foreground="#d9dfe4"
+						HorizontalAlignment="Center" />
+					<TextBlock
+						Text="games"
+						Foreground="#6b7c8d"
+						FontSize="11"
+						HorizontalAlignment="Center" />
+				</StackPanel>
+				<StackPanel HorizontalAlignment="Center" Spacing="2">
+					<TextBlock
+						Text="{Binding StatsCompletion}"
+						FontSize="22"
+						FontWeight="Bold"
+						Foreground="#d9dfe4"
+						HorizontalAlignment="Center" />
+					<TextBlock
+						Text="avg completion"
+						Foreground="#6b7c8d"
+						FontSize="11"
+						HorizontalAlignment="Center" />
+				</StackPanel>
+			</StackPanel>
+		</Border>
+		<!-- Search and Sort Bar -->
+		<Border Grid.Row="1" Padding="16,10" Background="#1b2838">
+			<Grid ColumnDefinitions="*,Auto">
+				<TextBox
+					Grid.Column="0"
+					Classes="search"
+					Text="{Binding SearchText}"
+					PlaceholderText="Search games..."
+					Margin="0,0,10,0" />
+				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Stretch">
+					<Button
+						Classes="sort"
+						Content="{Binding AlphabeticalSortLabel}"
+						Command="{Binding SortAlphabeticalCommand}" />
+					<Button
+						Classes="sort"
+						Content="{Binding CompletionSortLabel}"
+						Command="{Binding SortByCompletionCommand}" />
+					<Button
+						Classes="sort"
+						Content="{Binding TimeSortLabel}"
+						Command="{Binding SortByRecentCommand}" />
+				</StackPanel>
+			</Grid>
+		</Border>
+		<!-- Game List -->
+		<Border Grid.Row="2" Classes="panel" Margin="16,0,16,16">
+			<Grid>
+				<ListBox ItemsSource="{Binding Games}" IsVisible="{Binding IsListVisible}" Background="Transparent" Margin="8,8,0,8" Padding="0,0,8,0" SelectionMode="Single" SelectedItem="{x:Null}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" x:Name="GameList">
+					<ListBox.Styles>
+						<Style Selector="ListBoxItem">
+							<Setter
+								Property="Padding"
+								Value="0" />
+							<Setter
+								Property="Margin"
+								Value="0" />
+							<Setter
+								Property="Background"
+								Value="Transparent" />
+							<Setter
+								Property="Cursor"
+								Value="Hand" />
+						</Style>
+						<Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+							<Setter
+								Property="Background"
+								Value="Transparent" />
+						</Style>
+						<Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+							<Setter
+								Property="Background"
+								Value="Transparent" />
+						</Style>
+					</ListBox.Styles>
+					<ListBox.ItemTemplate>
+						<DataTemplate x:DataType="vm:GameItemViewModel">
+							<Border Classes="game-card" Margin="0,3" Background="#1c2b3c" PointerPressed="GameCard_PointerPressed">
+								<Grid ColumnDefinitions="160,*" MinHeight="72">
+									<Border
+										Grid.Column="0"
+										Background="#27374a"
+										CornerRadius="4,0,0,4"
+										ClipToBounds="True">
+										<Image
+											asyncImageLoader:ImageLoader.Source="{Binding ImageUri}"
+											Stretch="UniformToFill" />
+									</Border>
+									<Grid Grid.Column="1" Margin="16,10" RowDefinitions="Auto,Auto,Auto">
+										<TextBlock
+											Grid.Row="0"
+											Text="{Binding Name}"
+											FontSize="14"
+											FontWeight="SemiBold"
+											Foreground="#d9dfe4"
+											TextTrimming="CharacterEllipsis"
+											MaxLines="1"/>
+										<Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,6,0,4">
+											<ProgressBar
+												Grid.Column="0"
+												Classes="completion"
+												Value="{Binding CompletionPercentage}"
+												Maximum="100"
+												Height="6" />
+											<TextBlock
+												Grid.Column="1"
+												Margin="10,0,0,0"
+												Text="{Binding CompletionText}"
+												FontSize="12"
+												Foreground="#8f98a0"
+												VerticalAlignment="Center" />
+										</Grid>
+										<TextBlock
+											Grid.Row="2"
+											Text="{Binding PercentText}"
+											FontSize="12"
+											Foreground="#66c0f4"
+											FontWeight="SemiBold" />
+									</Grid>
+								</Grid>
+							</Border>
+						</DataTemplate>
+					</ListBox.ItemTemplate>
+				</ListBox>
+				<!-- Empty State -->
+				<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="{Binding IsEmpty}" Spacing="12">
+					<TextBlock
+						Classes="empty-state"
+						Text="No games found"
+						FontSize="18" />
+					<TextBlock
+						Text="Achievement data will appear here once detected."
+						Foreground="#6b7c8d"
+						FontSize="13"
+						HorizontalAlignment="Center" />
+				</StackPanel>
+				<!-- Loading State -->
+				<Border IsVisible="{Binding IsLoading}" Background="#DD1b2838" CornerRadius="4">
+					<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" Width="260">
+						<TextBlock
+							Text="{Binding ScanningStatus}"
+							Foreground="#d9dfe4"
+							FontSize="14"
+							HorizontalAlignment="Center"
+							TextWrapping="Wrap"
+							TextAlignment="Center" />
+						<ProgressBar
+							Classes="completion"
+							Value="{Binding ScanningProgress}"
+							Maximum="100"
+							Height="6"
+							IsVisible="{Binding IsScanning}" />
+						<TextBlock
+							Text="{Binding ScanningProgress, StringFormat='{}{0:F0}%'}"
+							Foreground="#66c0f4"
+							FontSize="13"
+							FontWeight="SemiBold"
+							HorizontalAlignment="Center"
+							IsVisible="{Binding IsScanning}" />
+					</StackPanel>
+				</Border>
+				<!-- Enrichment Progress Overlay -->
+				<Border IsVisible="{Binding IsEnriching}" Background="#DD1b2838" CornerRadius="4">
+					<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" Width="260">
+						<TextBlock
+							Text="{Binding LoadingStatus}"
+							Foreground="#d9dfe4"
+							FontSize="14"
+							HorizontalAlignment="Center"
+							TextWrapping="Wrap"
+							TextAlignment="Center" />
+						<ProgressBar
+							Classes="completion"
+							Value="{Binding LoadingProgress}"
+							Maximum="100"
+							Height="6" />
+						<TextBlock
+							Text="{Binding LoadingProgress, StringFormat='{}{0:F0}%'}"
+							Foreground="#66c0f4"
+							FontSize="13"
+							FontWeight="SemiBold"
+							HorizontalAlignment="Center" />
+					</StackPanel>
+				</Border>
+			</Grid>
+		</Border>
+	</Grid>
+</UserControl>
