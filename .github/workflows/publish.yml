@@ -33,5 +33,5 @@ jobs:
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Published-App
+        name: TinyTrophy
         path: ./publish/*.exe
