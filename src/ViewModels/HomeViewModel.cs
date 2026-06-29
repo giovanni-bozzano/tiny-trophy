@@ -117,6 +117,8 @@ public sealed partial class HomeViewModel(
 			mainViewModel.ApiKeyWarning = ApiKeyWarningMessages.FromResult(await steamApi.ValidateApiKeyAsync(apiKey));
 		else
 			mainViewModel.ApiKeyWarning = string.Empty;
+		mainViewModel.PrivateProfileWarning = string.Empty;
+		steamApi.ResetPrivacyFlag();
 
 		try
 		{
@@ -129,6 +131,9 @@ public sealed partial class HomeViewModel(
 			IReadOnlyList<Game> games = await achievementService.ScanGamesAsync(scanProgress);
 			_allGames = [.. games];
 			TotalGameCount = _allGames.Count;
+
+			if (steamApi.PrivacyErrorDetected)
+				mainViewModel.PrivateProfileWarning = "Your Steam game details are private. Set them to Public in Steam \u2192 Settings \u2192 Privacy to load all achievements.";
 
 			ApplyFilter();
 

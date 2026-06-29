@@ -22,6 +22,9 @@ public sealed partial class MainViewModel
 	[ObservableProperty]
 	public partial string ApiKeyWarning { get; set; } = string.Empty;
 
+	[ObservableProperty]
+	public partial string PrivateProfileWarning { get; set; } = string.Empty;
+
 	public HomeViewModel HomeViewModel { get; }
 	public SettingsViewModel SettingsViewModel { get; }
 
