@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using TinyTrophy.Models;
 
@@ -38,6 +39,11 @@ public interface ISteamApiService
 	/// The disk cache is kept so future lookups can still read from it.
 	/// </summary>
 	void ReleaseMemoryCache();
+	/// <summary>
+	/// True if the last scan encountered a Steam privacy error (profile or game details not public).
+	/// </summary>
+	bool PrivacyErrorDetected { get; }
+	void ResetPrivacyFlag();
 }
 
 public sealed class SteamApiService
@@ -47,6 +53,7 @@ public sealed class SteamApiService
 	private readonly HttpClient _http;
 	private readonly ISettingsService _settings;
 	private readonly ConcurrentDictionary<string, SteamGameMetadata> _cache = new();
+	private volatile bool _privacyErrorDetected;
 	private static readonly string CacheDir = Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
 		"TinyTrophy",
@@ -69,9 +76,11 @@ public sealed class SteamApiService
 		try
 		{
 			HttpResponseMessage response = await _http.GetAsync($"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={apiKey}", ct);
-			return response.IsSuccessStatusCode
-				? ApiKeyValidationResult.Valid
-				: ApiKeyValidationResult.Invalid;
+			if (response.IsSuccessStatusCode)
+				return ApiKeyValidationResult.Valid;
+			if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+				return ApiKeyValidationResult.Invalid;
+			return ApiKeyValidationResult.Unreachable;
 		}
 		catch (HttpRequestException)
 		{
@@ -306,21 +315,35 @@ public sealed class SteamApiService
 			string response = await _http.GetStringAsync(url, ct);
 			using JsonDocument doc = JsonDocument.Parse(response);
 
-			if (doc.RootElement.TryGetProperty("playerstats", out JsonElement stats) && stats.TryGetProperty("achievements", out JsonElement achs))
+			if (doc.RootElement.TryGetProperty("playerstats", out JsonElement stats))
 			{
-				foreach (JsonElement ach in achs.EnumerateArray())
+				if (stats.TryGetProperty("achievements", out JsonElement achs))
 				{
-					string name = ach.GetProperty("apiname").GetString() ?? "";
-					int achieved = ach.TryGetProperty("achieved", out JsonElement a) ? a.GetInt32() : 0;
-					long unlockTime = ach.TryGetProperty("unlocktime", out JsonElement ut) ? ut.GetInt64() : 0;
-
-					achievements.Add(new Achievement
+					foreach (JsonElement ach in achs.EnumerateArray())
 					{
-						Id = name,
-						Name = name,
-						IsUnlocked = achieved == 1,
-						UnlockTime = unlockTime > 0 ? DateTimeOffset.FromUnixTimeSeconds(unlockTime).LocalDateTime : null,
-					});
+						string name = ach.GetProperty("apiname").GetString() ?? "";
+						int achieved = ach.TryGetProperty("achieved", out JsonElement a) ? a.GetInt32() : 0;
+						long unlockTime = ach.TryGetProperty("unlocktime", out JsonElement ut) ? ut.GetInt64() : 0;
+
+						achievements.Add(new Achievement
+						{
+							Id = name,
+							Name = name,
+							IsUnlocked = achieved == 1,
+							UnlockTime = unlockTime > 0 ? DateTimeOffset.FromUnixTimeSeconds(unlockTime).LocalDateTime : null,
+						});
+					}
+				}
+				else if (stats.TryGetProperty("success", out JsonElement successEl) &&
+						 !successEl.GetBoolean() &&
+						 stats.TryGetProperty("error", out JsonElement errorEl))
+				{
+					string err = errorEl.GetString() ?? string.Empty;
+					if (err.Contains("not public", StringComparison.OrdinalIgnoreCase) ||
+						err.Contains("not publicly", StringComparison.OrdinalIgnoreCase))
+					{
+						_privacyErrorDetected = true;
+					}
 				}
 			}
 		}
@@ -328,6 +351,10 @@ public sealed class SteamApiService
 
 		return achievements;
 	}
+
+	public bool PrivacyErrorDetected => _privacyErrorDetected;
+
+	public void ResetPrivacyFlag() => _privacyErrorDetected = false;
 
 	public void ClearCache()
 	{
