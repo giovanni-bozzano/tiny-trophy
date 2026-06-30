@@ -38,10 +38,6 @@ public sealed class AchievementService(
 				IReadOnlyList<Game> games = await scanner.ParseAsync(relay, ct);
 				allGames.AddRange(games);
 			}
-			catch (OperationCanceledException)
-			{
-				throw;
-			}
 			catch
 			{
 				// Ignore scanners that fail

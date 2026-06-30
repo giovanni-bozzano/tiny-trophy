@@ -14,7 +14,7 @@
 	<Grid RowDefinitions="Auto,Auto,*">
 		<!-- Navigation Bar -->
 		<Border Grid.Row="0" Background="#101821" Padding="8,6" IsVisible="{Binding ShowNavBar}">
-			<Grid ColumnDefinitions="Auto,*,Auto">
+			<Grid ColumnDefinitions="Auto,*,Auto" IsHitTestVisible="{Binding !IsBusy}">
 				<!-- Back Button -->
 				<Button
 					Grid.Column="0"
@@ -49,7 +49,7 @@
 			</Border>
 		</StackPanel>
 		<!-- Content Area -->
-		<ContentControl Grid.Row="2" Content="{Binding CurrentView}">
+		<ContentControl Grid.Row="2" Content="{Binding CurrentView}" IsHitTestVisible="{Binding !IsBusy}">
 			<ContentControl.DataTemplates>
 				<DataTemplate DataType="vm:HomeViewModel">
 					<views:HomeView/>
