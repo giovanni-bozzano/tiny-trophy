@@ -22,6 +22,9 @@ public sealed partial class MainViewModel
 	[ObservableProperty]
 	public partial string ApiKeyWarning { get; set; } = string.Empty;
 
+	[ObservableProperty]
+	public partial bool IsBusy { get; private set; }
+
 	public HomeViewModel HomeViewModel { get; }
 	public SettingsViewModel SettingsViewModel { get; }
 
@@ -35,6 +38,12 @@ public sealed partial class MainViewModel
 
 		HomeViewModel = new HomeViewModel(achievementService, this, settingsService, steamApi);
 		SettingsViewModel = new SettingsViewModel(settingsService, this, checkForUpdate);
+
+		HomeViewModel.LoadGamesCommand.PropertyChanged += (_, e) =>
+		{
+			if (e.PropertyName == nameof(HomeViewModel.LoadGamesCommand.IsRunning))
+				IsBusy = HomeViewModel.LoadGamesCommand.IsRunning;
+		};
 
 		CurrentView = HomeViewModel;
 	}
@@ -64,12 +73,12 @@ public sealed partial class MainViewModel
 	}
 
 	[RelayCommand]
-	private void RefreshMetadata()
+	private async Task RefreshMetadataAsync()
 	{
 		_steamApi.ClearCache();
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
-		_ = HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
 	}
 
 	[RelayCommand]

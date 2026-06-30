@@ -149,7 +149,7 @@ public sealed partial class SettingsViewModel
 		if (!string.Equals(SteamApiKey, _originalApiKey, StringComparison.Ordinal))
 		{
 			_originalApiKey = SteamApiKey;
-			_mainViewModel.RefreshMetadataCommand.Execute(null);
+			await _mainViewModel.RefreshMetadataCommand.ExecuteAsync(null);
 		}
 		else
 		{
