@@ -14,7 +14,9 @@ public sealed class SteamOfficialScanner(
 	public AchievementSource Source => AchievementSource.SteamOfficial;
 	public string DisplayName => "Steam library";
 
-	public async Task<IReadOnlyList<Game>> ParseAsync(IProgress<(int current, int total)>? progress = null)
+	public async Task<IReadOnlyList<Game>> ParseAsync(
+		IProgress<(int current, int total)>? progress = null,
+		CancellationToken ct = default)
 	{
 		if (!settings.Settings.SteamOfficialEnabled)
 			return [];
@@ -23,7 +25,7 @@ public sealed class SteamOfficialScanner(
 		if (string.IsNullOrWhiteSpace(settings.Settings.SteamApiKey) || string.IsNullOrWhiteSpace(steamId))
 			return [];
 
-		List<string> appIds = await steamApi.GetOwnedGamesAsync(steamId);
+		List<string> appIds = await steamApi.GetOwnedGamesAsync(steamId, ct);
 		if (appIds.Count == 0)
 			return [];
 
@@ -34,10 +36,10 @@ public sealed class SteamOfficialScanner(
 
 		IEnumerable<Task> tasks = appIds.Select(async appId =>
 		{
-			await semaphore.WaitAsync();
+			await semaphore.WaitAsync(ct);
 			try
 			{
-				List<Achievement> achievements = await steamApi.GetPlayerAchievementsAsync(steamId, appId);
+				List<Achievement> achievements = await steamApi.GetPlayerAchievementsAsync(steamId, appId, ct);
 
 				int done = Interlocked.Increment(ref completed);
 				progress?.Report((done, total));

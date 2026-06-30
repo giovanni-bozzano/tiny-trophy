@@ -12,13 +12,16 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	public AchievementSource Source => AchievementSource.SteamEmulator;
 	public string DisplayName => "Steam emulator folders";
 
-	public Task<IReadOnlyList<Game>> ParseAsync(IProgress<(int current, int total)>? progress = null)
+	public Task<IReadOnlyList<Game>> ParseAsync(
+		IProgress<(int current, int total)>? progress = null,
+		CancellationToken ct = default)
 	{
 		List<Game> games = [];
 		List<WatchedFolderConfig> folders = settings.Settings.WatchedFolders;
 
 		foreach (WatchedFolderConfig folder in folders)
 		{
+			ct.ThrowIfCancellationRequested();
 			if (!folder.Enabled || string.IsNullOrWhiteSpace(folder.Path))
 				continue;
 

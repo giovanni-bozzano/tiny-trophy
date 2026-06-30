@@ -9,7 +9,7 @@ namespace TinyTrophy.Services;
 /// </summary>
 public interface IAchievementService
 {
-	Task<IReadOnlyList<Game>> ScanGamesAsync(IProgress<(string scannerName, int current, int total)>? progress = null);
+	Task<IReadOnlyList<Game>> ScanGamesAsync(IProgress<(string scannerName, int current, int total)>? progress = null, CancellationToken ct = default);
 	Task EnrichGamesAsync(IReadOnlyList<Game> games, IProgress<int>? progress = null, CancellationToken ct = default);
 	UserProfile GetUserProfile(IReadOnlyList<Game> games);
 }
@@ -20,20 +20,27 @@ public sealed class AchievementService(
 	ISettingsService settings)
 	: IAchievementService
 {
-	public async Task<IReadOnlyList<Game>> ScanGamesAsync(IProgress<(string scannerName, int current, int total)>? progress = null)
+	public async Task<IReadOnlyList<Game>> ScanGamesAsync(
+		IProgress<(string scannerName, int current, int total)>? progress = null,
+		CancellationToken ct = default)
 	{
 		List<Game> allGames = [];
 
 		foreach (IAchievementScanner scanner in scanners)
 		{
+			ct.ThrowIfCancellationRequested();
 			try
 			{
 				Progress<(int current, int total)>? relay = progress is not null
 					? new(p => progress.Report((scanner.DisplayName, p.current, p.total)))
 					: null;
 
-				IReadOnlyList<Game> games = await scanner.ParseAsync(relay);
+				IReadOnlyList<Game> games = await scanner.ParseAsync(relay, ct);
 				allGames.AddRange(games);
+			}
+			catch (OperationCanceledException)
+			{
+				throw;
 			}
 			catch
 			{

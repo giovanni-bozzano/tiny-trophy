@@ -10,6 +10,45 @@ public static class UpdateService
 	private const string GitHubOwner = "giovanni-bozzano";
 	private const string GitHubRepo = "tiny-trophy";
 
+	private static readonly string DataDir = Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+		"TinyTrophy");
+
+	private static readonly string UpdatedFlagPath = Path.Combine(DataDir, "updated.flag");
+
+	/// <summary>
+	/// Writes a flag file so the next launch knows an update just happened.
+	/// </summary>
+	public static void WriteUpdatedFlag(string newVersion)
+	{
+		try
+		{
+			Directory.CreateDirectory(DataDir);
+			File.WriteAllText(UpdatedFlagPath, newVersion);
+		}
+		catch { }
+	}
+
+	/// <summary>
+	/// Reads and deletes the flag file. Returns the version string if the flag existed, otherwise null.
+	/// </summary>
+	public static string? ConsumeUpdatedFlag()
+	{
+		try
+		{
+			if (!File.Exists(UpdatedFlagPath))
+				return null;
+
+			string version = File.ReadAllText(UpdatedFlagPath).Trim();
+			File.Delete(UpdatedFlagPath);
+			return string.IsNullOrWhiteSpace(version) ? "a new version" : version;
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
 	private static readonly HttpClient s_http = new()
 	{
 		Timeout = TimeSpan.FromSeconds(10),
@@ -101,6 +140,10 @@ public static class UpdateService
 		// Swap the current exe with the downloaded update
 		File.Move(currentExe, oldExe);
 		File.Move(downloadedExePath, currentExe);
+
+		// Leave a flag so the next launch can show a "just updated" notice
+		string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? string.Empty;
+		WriteUpdatedFlag(version);
 
 		// Relaunch with the new version
 		Process.Start(new ProcessStartInfo(currentExe) { UseShellExecute = true });
