@@ -47,14 +47,6 @@
 					TextWrapping="Wrap"
 					HorizontalAlignment="Center" />
 			</Border>
-			<Border Background="#443500" Padding="12,8" IsVisible="{Binding PrivateProfileWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-				<TextBlock
-					Text="{Binding PrivateProfileWarning}"
-					Foreground="#ffd966"
-					FontSize="12"
-					TextWrapping="Wrap"
-					HorizontalAlignment="Center" />
-			</Border>
 		</StackPanel>
 		<!-- Content Area -->
 		<ContentControl Grid.Row="2" Content="{Binding CurrentView}">

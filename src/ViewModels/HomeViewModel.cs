@@ -14,6 +14,7 @@ public sealed partial class HomeViewModel(
 	: ObservableObject
 {
 	private List<Game> _allGames = [];
+	private CancellationTokenSource _cts = new();
 
 	[ObservableProperty]
 	public partial ObservableCollection<GameItemViewModel> Games { get; set; } = [];
@@ -99,9 +100,18 @@ public sealed partial class HomeViewModel(
 		OnPropertyChanged(nameof(StatsCompletion));
 	}
 
-	[RelayCommand]
+	[RelayCommand(AllowConcurrentExecutions = true)]
 	private async Task LoadGamesAsync()
 	{
+		// Cancel any in-flight load and start a fresh one
+		CancellationTokenSource oldCts = _cts;
+		CancellationTokenSource newCts = new();
+		_cts = newCts;
+		await oldCts.CancelAsync();
+		oldCts.Dispose();
+
+		CancellationToken ct = newCts.Token;
+
 		IsLoading = true;
 		IsScanning = true;
 		ScanningProgress = 0;
@@ -117,8 +127,6 @@ public sealed partial class HomeViewModel(
 			mainViewModel.ApiKeyWarning = ApiKeyWarningMessages.FromResult(await steamApi.ValidateApiKeyAsync(apiKey));
 		else
 			mainViewModel.ApiKeyWarning = string.Empty;
-		mainViewModel.PrivateProfileWarning = string.Empty;
-		steamApi.ResetPrivacyFlag();
 
 		try
 		{
@@ -128,12 +136,9 @@ public sealed partial class HomeViewModel(
 				ScanningProgress = (double)p.current / p.total * 100;
 				ScanningStatus = $"Scanning {p.scannerName}... ({p.current}/{p.total})";
 			});
-			IReadOnlyList<Game> games = await achievementService.ScanGamesAsync(scanProgress);
+			IReadOnlyList<Game> games = await achievementService.ScanGamesAsync(scanProgress, ct);
 			_allGames = [.. games];
 			TotalGameCount = _allGames.Count;
-
-			if (steamApi.PrivacyErrorDetected)
-				mainViewModel.PrivateProfileWarning = "Your Steam game details are private. Set them to Public in Steam \u2192 Settings \u2192 Privacy to load all achievements.";
 
 			ApplyFilter();
 
@@ -156,7 +161,7 @@ public sealed partial class HomeViewModel(
 				LoadingStatus = $"Fetching metadata... ({done}/{TotalGameCount})";
 			});
 
-			await achievementService.EnrichGamesAsync(games, progress);
+			await achievementService.EnrichGamesAsync(games, progress, ct);
 
 			// Refresh the UI with the enriched data
 			EnrichedCount = TotalGameCount;
@@ -174,14 +179,22 @@ public sealed partial class HomeViewModel(
 					detailVm.RefreshFromGame(updatedGame);
 			}
 		}
+		catch (OperationCanceledException)
+		{
+			// A newer refresh cancelled this run — leave UI state to the new run
+		}
 		catch (Exception ex)
 		{
 			LoadingStatus = $"Error: {ex.Message}";
 		}
 		finally
 		{
-			IsLoading = false;
-			IsEnriching = false;
+			// Only reset flags if this run was not superseded by a newer one
+			if (!ct.IsCancellationRequested)
+			{
+				IsLoading = false;
+				IsEnriching = false;
+			}
 		}
 	}
 

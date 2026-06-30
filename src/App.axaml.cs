@@ -34,6 +34,9 @@ public partial class App
 
 		// Delete leftover files from a previous update
 		UpdateService.CleanupPreviousUpdate();
+
+		// Silently delete the updated flag written by the previous version before restarting
+		UpdateService.ConsumeUpdatedFlag();
 	}
 
 	public override void OnFrameworkInitializationCompleted()

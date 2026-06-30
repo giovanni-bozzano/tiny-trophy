@@ -22,9 +22,6 @@ public sealed partial class MainViewModel
 	[ObservableProperty]
 	public partial string ApiKeyWarning { get; set; } = string.Empty;
 
-	[ObservableProperty]
-	public partial string PrivateProfileWarning { get; set; } = string.Empty;
-
 	public HomeViewModel HomeViewModel { get; }
 	public SettingsViewModel SettingsViewModel { get; }
 
@@ -67,12 +64,12 @@ public sealed partial class MainViewModel
 	}
 
 	[RelayCommand]
-	private async Task RefreshMetadataAsync()
+	private void RefreshMetadata()
 	{
 		_steamApi.ClearCache();
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
-		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+		_ = HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
 	}
 
 	[RelayCommand]

@@ -39,11 +39,6 @@ public interface ISteamApiService
 	/// The disk cache is kept so future lookups can still read from it.
 	/// </summary>
 	void ReleaseMemoryCache();
-	/// <summary>
-	/// True if the last scan encountered a Steam privacy error (profile or game details not public).
-	/// </summary>
-	bool PrivacyErrorDetected { get; }
-	void ResetPrivacyFlag();
 }
 
 public sealed class SteamApiService
@@ -53,7 +48,6 @@ public sealed class SteamApiService
 	private readonly HttpClient _http;
 	private readonly ISettingsService _settings;
 	private readonly ConcurrentDictionary<string, SteamGameMetadata> _cache = new();
-	private volatile bool _privacyErrorDetected;
 	private static readonly string CacheDir = Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
 		"TinyTrophy",
@@ -334,27 +328,12 @@ public sealed class SteamApiService
 						});
 					}
 				}
-				else if (stats.TryGetProperty("success", out JsonElement successEl) &&
-						 !successEl.GetBoolean() &&
-						 stats.TryGetProperty("error", out JsonElement errorEl))
-				{
-					string err = errorEl.GetString() ?? string.Empty;
-					if (err.Contains("not public", StringComparison.OrdinalIgnoreCase) ||
-						err.Contains("not publicly", StringComparison.OrdinalIgnoreCase))
-					{
-						_privacyErrorDetected = true;
-					}
-				}
 			}
 		}
 		catch { }
 
 		return achievements;
 	}
-
-	public bool PrivacyErrorDetected => _privacyErrorDetected;
-
-	public void ResetPrivacyFlag() => _privacyErrorDetected = false;
 
 	public void ClearCache()
 	{

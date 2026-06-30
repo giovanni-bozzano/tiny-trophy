@@ -21,7 +21,9 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 	public AchievementSource Source => AchievementSource.ShadPs4;
 	public string DisplayName => "ShadPS4 trophies";
 
-	public Task<IReadOnlyList<Game>> ParseAsync(IProgress<(int current, int total)>? progress = null)
+	public Task<IReadOnlyList<Game>> ParseAsync(
+		IProgress<(int current, int total)>? progress = null,
+		CancellationToken ct = default)
 	{
 		List<Game> games = [];
 
@@ -50,6 +52,7 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 
 		foreach (string npwrDir in npwrDirs)
 		{
+			ct.ThrowIfCancellationRequested();
 			current++;
 			progress?.Report((current, total));
 
