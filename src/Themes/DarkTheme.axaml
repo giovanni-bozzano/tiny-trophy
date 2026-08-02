@@ -121,4 +121,20 @@
 		<Setter Property="Background" Value="#2a475e" />
 		<Setter Property="Foreground" Value="#d9dfe4" />
 	</Style>
+	<!-- Keep the scrollbar thumb thin instead of expanding to full width/height on hover -->
+	<Style Selector="ScrollBar:vertical[IsExpanded=true] /template/ Thumb">
+		<Setter Property="RenderTransform" Value="{DynamicResource VerticalSmallScrollThumbScaleTransform}" />
+	</Style>
+	<Style Selector="ScrollBar:horizontal[IsExpanded=true] /template/ Thumb">
+		<Setter Property="RenderTransform" Value="{DynamicResource HorizontalSmallScrollThumbScaleTransform}" />
+	</Style>
+	<Style Selector="ScrollBar[IsExpanded=true] /template/ Rectangle#TrackRect">
+		<Setter Property="Opacity" Value="0" />
+	</Style>
+	<Style Selector="ScrollBar[IsExpanded=true] /template/ RepeatButton">
+		<Setter Property="Opacity" Value="0" />
+	</Style>
+	<Style Selector="ScrollBar[IsExpanded=true] /template/ Grid#Root">
+		<Setter Property="Background" Value="Transparent" />
+	</Style>
 </Styles>
