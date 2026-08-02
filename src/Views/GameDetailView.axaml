@@ -9,7 +9,7 @@
 	<Grid RowDefinitions="Auto,Auto,Auto,*">
 		<!-- Game Header (mirrors profile bar height/padding) -->
 		<Border Grid.Row="0" Padding="16,14" Background="#15202d" Height="88">
-			<Grid ColumnDefinitions="Auto,*">
+			<Grid ColumnDefinitions="Auto,*,Auto">
 				<Border Grid.Column="0" Width="160" Height="60" CornerRadius="4" ClipToBounds="True" Background="#27374a" Margin="0,0,14,0">
 					<Image
 						asyncImageLoader:ImageLoader.Source="{Binding GameImageUri}"
@@ -64,6 +64,24 @@
 						</TextBlock>
 					</Grid>
 				</StackPanel>
+				<Button
+					Grid.Column="2"
+					Classes="sort"
+					VerticalAlignment="Bottom"
+					Command="{Binding OpenFolderCommand}"
+					IsVisible="{Binding HasFolder}"
+					ToolTip.Tip="Open achievement file folder">
+					<StackPanel Orientation="Horizontal" Spacing="6">
+						<TextBlock Text="Open Folder" VerticalAlignment="Center" />
+						<Path
+							Data="M10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6H12L10,4Z"
+							Fill="#8f98a0"
+							Width="14"
+							Height="14"
+							Stretch="Uniform"
+							VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
 			</Grid>
 		</Border>
 		<!-- Search and Sort Bar (same as HomeView) -->

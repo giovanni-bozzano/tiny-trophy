@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Text;
 using TinyTrophy.Models;
 using TinyTrophy.Services;
@@ -55,6 +56,8 @@ public sealed partial class GameDetailViewModel
 	public partial bool ShowLocked { get; set; } = true;
 
 	public string GameAppId => _game.AppId;
+
+	public bool HasFolder => !string.IsNullOrEmpty(_game.FolderPath) && Directory.Exists(_game.FolderPath);
 
 	public string AlphabeticalSortLabel => CurrentSort == AchievementSortMode.Alphabetical
 		? (SortAscending ? "A-Z \u2193" : "A-Z \u2191")
@@ -111,6 +114,8 @@ public sealed partial class GameDetailViewModel
 	public void RefreshFromGame(Game updatedGame)
 	{
 		_game = updatedGame;
+		OnPropertyChanged(nameof(GameAppId));
+		OnPropertyChanged(nameof(HasFolder));
 		RefreshFromGame();
 	}
 
@@ -157,6 +162,19 @@ public sealed partial class GameDetailViewModel
 	{
 		ShowLocked = !ShowLocked;
 		ApplyFilter();
+	}
+
+	[RelayCommand]
+	private void OpenFolder()
+	{
+		if (string.IsNullOrEmpty(_game.FolderPath) || !Directory.Exists(_game.FolderPath))
+			return;
+
+		try
+		{
+			Process.Start(new ProcessStartInfo(_game.FolderPath) { UseShellExecute = true });
+		}
+		catch { }
 	}
 
 	private void ApplyFilter()

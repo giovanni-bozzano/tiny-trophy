@@ -6,6 +6,8 @@ public sealed class Game
 	public string Name { get; set; } = string.Empty;
 	public string ImageUri { get; set; } = string.Empty;
 	public AchievementSource Source { get; set; }
+	// Directory containing the achievement files on disk, if known (e.g. Steam emulator save folder).
+	public string? FolderPath { get; set; }
 	public List<Achievement> Achievements { get; set; } = [];
 	public TimeSpan Playtime { get; set; }
 	public DateTime LastPlayed { get; set; }

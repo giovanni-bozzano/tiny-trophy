@@ -59,6 +59,7 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 				AppId = appId,
 				Name = $"AppID: {appId}",
 				Source = AchievementSource.SteamEmulator,
+				FolderPath = appDir,
 				Achievements = achievements
 			});
 		}
