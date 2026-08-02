@@ -22,10 +22,30 @@
 						FontWeight="Bold"
 						Foreground="#d9dfe4"
 						TextTrimming="CharacterEllipsis" />
-					<TextBlock
-						Text="{Binding GameAppId, StringFormat='App ID: {0}'}"
-						FontSize="11"
-						Foreground="#6b7c8d" />
+					<Border
+						x:Name="AppIdBorder"
+						Cursor="Hand"
+						Background="Transparent"
+						HorizontalAlignment="Left"
+						ToolTip.Tip="Click to copy App ID"
+						PointerPressed="OnAppIdPointerPressed">
+						<Panel>
+							<TextBlock
+								Text="{Binding GameAppId, StringFormat='App ID: {0}'}"
+								FontSize="11"
+								Foreground="#6b7c8d" />
+							<Popup
+								x:Name="CopiedPopup"
+								PlacementTarget="{Binding #AppIdBorder}"
+								Placement="Bottom"
+								IsLightDismissEnabled="False"
+								VerticalOffset="4">
+								<Border Background="#27374a" CornerRadius="4" Padding="8,4">
+									<TextBlock Text="Copied!" FontSize="11" />
+								</Border>
+							</Popup>
+						</Panel>
+					</Border>
 					<Grid ColumnDefinitions="*,Auto" MaxWidth="340" HorizontalAlignment="Left" Margin="0,2,0,0">
 						<ProgressBar
 							Grid.Column="0"
