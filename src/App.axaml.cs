@@ -9,9 +9,6 @@ using Microsoft.Win32;
 using System.Diagnostics;
 using TinyTrophy.Models;
 using TinyTrophy.Services;
-using TinyTrophy.Services.Enrichers;
-using TinyTrophy.Services.Scanners;
-using TinyTrophy.Services.Watchers;
 using TinyTrophy.ViewModels;
 using TinyTrophy.Views;
 
@@ -20,10 +17,9 @@ namespace TinyTrophy;
 public partial class App
 	: Application
 {
-	private IGameWatcherService? _gameWatcher;
+	private AppServices? _services;
 	private TrayIcon? _trayIcon;
 	private MainWindow? _mainWindow;
-	private SettingsService? _settingsService;
 
 	public override void Initialize()
 	{
@@ -46,28 +42,11 @@ public partial class App
 			// Keep the app running when all windows close (lives in the system tray)
 			desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-			// Load settings synchronously to ensure they're ready before anything else runs
-			SettingsService settingsService = new();
-			settingsService.LoadAsync().GetAwaiter().GetResult();
-			_settingsService = settingsService;
+			AppServices services = new(async () => await CheckForUpdateAsync(_mainWindow!));
+			_services = services;
 
-			SteamApiService steamApi = new(settingsService);
-
-			List<IAchievementScanner> scanners =
-			[
-				new SteamEmulatorScanner(settingsService),
-				new ShadPs4Scanner(settingsService),
-				new SteamOfficialScanner(settingsService, steamApi)
-			];
-
-			List<IGameEnricher> enrichers =
-			[
-				new SteamGameEnricher(steamApi)
-			];
-
-			AchievementService achievementService = new(scanners, enrichers, settingsService);
-
-			MainViewModel mainViewModel = new(achievementService, settingsService, steamApi, async () => await CheckForUpdateAsync(_mainWindow!));
+			SettingsService settingsService = services.Settings;
+			MainViewModel mainViewModel = services.MainViewModel;
 			_mainWindow = new MainWindow(mainViewModel);
 
 			// Set up system tray icon
@@ -75,7 +54,7 @@ public partial class App
 
 			desktop.ShutdownRequested += (_, _) =>
 			{
-				_gameWatcher?.Dispose();
+				_services?.Dispose();
 				_trayIcon?.Dispose();
 			};
 
@@ -98,15 +77,15 @@ public partial class App
 					if (changed)
 					{
 						await settingsService.SaveAsync();
-						steamApi.ClearCache();
+						services.SteamApi.ClearCache();
 					}
 
-					StartServices(settingsService, steamApi, mainViewModel);
+					StartServices(services);
 				});
 			}
 			else
 			{
-				StartServices(settingsService, steamApi, mainViewModel);
+				StartServices(services);
 			}
 
 			// Show window unless "Start minimized" is enabled
@@ -121,20 +100,16 @@ public partial class App
 		base.OnFrameworkInitializationCompleted();
 	}
 
-	private void StartServices(
-		SettingsService settingsService,
-		SteamApiService steamApi,
-		MainViewModel mainViewModel)
+	/// <summary>
+	/// Connects the already built services to the UI and starts watching for achievements.
+	/// </summary>
+	private static void StartServices(AppServices services)
 	{
-		SteamEmulatorWatcher steamEmulatorWatcher = new(settingsService, steamApi);
-		ShadPs4Watcher shadPs4Watcher = new();
+		SettingsService settingsService = services.Settings;
+		MainViewModel mainViewModel = services.MainViewModel;
+		IGameWatcherService gameWatcher = services.GameWatcher;
 
-		List<IGameWatcher> watchers = [steamEmulatorWatcher, shadPs4Watcher];
-
-		_gameWatcher = new GameWatcherService(watchers);
-		mainViewModel.SetGameWatcher(_gameWatcher);
-
-		_gameWatcher.AchievementsChanged += (_, _) =>
+		gameWatcher.AchievementsChanged += (_, _) =>
 		{
 			Dispatcher.UIThread.Post(() =>
 			{
@@ -142,7 +117,7 @@ public partial class App
 			});
 		};
 
-		_gameWatcher.AchievementUnlocked += (_, e) =>
+		gameWatcher.AchievementUnlocked += (_, e) =>
 		{
 			Debug.WriteLine($"[Achievement Unlocked] AppID={e.AppId} | {e.Achievement.Id} ({e.Achievement.Name})");
 
@@ -156,7 +131,7 @@ public partial class App
 			}
 		};
 
-		steamEmulatorWatcher.ApiKeyValidated += (_, result) =>
+		services.SteamApi.ApiKeyValidated += (_, result) =>
 		{
 			Dispatcher.UIThread.Post(() =>
 			{
@@ -164,7 +139,7 @@ public partial class App
 			});
 		};
 
-		_gameWatcher.Start();
+		gameWatcher.Start();
 
 		_ = mainViewModel.HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
 	}
@@ -184,12 +159,13 @@ public partial class App
 
 		NativeMenuItem minimizedItem = new();
 		UpdateMinimizedMenuText(minimizedItem);
-		minimizedItem.Click += (_, _) =>
+		minimizedItem.Click += async (_, _) =>
 		{
-			if (_settingsService is not null)
+			if (_services is not null)
 			{
-				_settingsService.Settings.StartMinimized = !_settingsService.Settings.StartMinimized;
-				_ = _settingsService.SaveAsync();
+				SettingsService settings = _services.Settings;
+				settings.Settings.StartMinimized = !settings.Settings.StartMinimized;
+				await settings.SaveAsync();
 				UpdateMinimizedMenuText(minimizedItem);
 			}
 		};
@@ -228,7 +204,7 @@ public partial class App
 
 	private void UpdateMinimizedMenuText(NativeMenuItem item)
 	{
-		bool enabled = _settingsService?.Settings.StartMinimized ?? false;
+		bool enabled = _services?.Settings.Settings.StartMinimized ?? false;
 		item.Header = enabled ? "✓ Start minimized" : "Start minimized";
 	}
 
@@ -276,7 +252,7 @@ public partial class App
 		{
 			_mainWindow?.AllowClose = true;
 
-			_gameWatcher?.Dispose();
+			_services?.Dispose();
 			_trayIcon?.Dispose();
 
 			if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

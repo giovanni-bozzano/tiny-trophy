@@ -70,6 +70,10 @@ public sealed class AchievementService(
 				if (enricher is not null)
 					await enricher.EnrichAsync(game, ct);
 			}
+			catch (OperationCanceledException) when (ct.IsCancellationRequested)
+			{
+				throw;
+			}
 			catch { }
 			finally
 			{

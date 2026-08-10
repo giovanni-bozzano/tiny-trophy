@@ -111,10 +111,10 @@ public sealed partial class HomeViewModel(
 		EnrichedCount = 0;
 		TotalGameCount = 0;
 
-		// Validate API key before loading
+		// Validate the API key before loading
 		string apiKey = settingsService.Settings.SteamApiKey;
 		if (!string.IsNullOrWhiteSpace(apiKey))
-			mainViewModel.ApiKeyWarning = ApiKeyWarningMessages.FromResult(await steamApi.ValidateApiKeyAsync(apiKey));
+			await steamApi.ValidateApiKeyAsync(apiKey);
 		else
 			mainViewModel.ApiKeyWarning = string.Empty;
 

@@ -12,10 +12,6 @@ public sealed class SteamEmulatorWatcher(
 	ISteamApiService steamApi)
 	: GameWatcherBase
 {
-	/// <summary>
-	/// Fired after the API key is validated during achievement detection.
-	/// </summary>
-	public event EventHandler<ApiKeyValidationResult>? ApiKeyValidated;
 
 	protected override void InitializeKnownState()
 	{
@@ -125,8 +121,6 @@ public sealed class SteamEmulatorWatcher(
 			return null;
 
 		ApiKeyValidationResult validationResult = await steamApi.ValidateApiKeyAsync(apiKey);
-		ApiKeyValidated?.Invoke(this, validationResult);
-
 		if (validationResult != ApiKeyValidationResult.Valid)
 			return null;
 
