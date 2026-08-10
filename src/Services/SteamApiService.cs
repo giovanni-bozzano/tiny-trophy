@@ -6,18 +6,30 @@ using TinyTrophy.Models;
 
 namespace TinyTrophy.Services;
 
+/// <summary>
+/// Outcome of a Steam Web API key check.
+/// </summary>
 public enum ApiKeyValidationResult
 {
+	/// <summary>The key was accepted by Steam.</summary>
 	Valid,
+	/// <summary>Steam rejected the key, or no key was provided.</summary>
 	Invalid,
+	/// <summary>Steam could not be contacted, so the key could not be checked.</summary>
 	Unreachable
 }
 
+/// <summary>
+/// User facing warnings shown when the Steam Web API cannot be used.
+/// </summary>
 public static class ApiKeyWarningMessages
 {
 	public const string Invalid = "Steam API key is invalid. Metadata and official achievements may not load. Check your key in Settings.";
 	public const string Unreachable = "Could not reach Steam servers. You may be offline. Some features may not work.";
 
+	/// <summary>
+	/// Returns the warning matching <paramref name="result"/>, or an empty string when the key is valid.
+	/// </summary>
 	public static string FromResult(ApiKeyValidationResult result) => result switch
 	{
 		ApiKeyValidationResult.Invalid => Invalid,
@@ -26,21 +38,38 @@ public static class ApiKeyWarningMessages
 	};
 }
 
+/// <summary>
+/// Reads game and achievement data from the Steam Web API, backed by a memory and disk cache.
+/// </summary>
 public interface ISteamApiService
 {
-	Task<ApiKeyValidationResult> ValidateApiKeyAsync(string apiKey, CancellationToken ct = default);
-	Task<SteamGameMetadata?> GetSteamGameMetadataAsync(string appId, CancellationToken ct = default);
-	Task<Dictionary<string, double>> GetGlobalAchievementStatsAsync(string appId, CancellationToken ct = default);
-	Task<List<string>> GetOwnedGamesAsync(string steamId, CancellationToken ct = default);
-	Task<List<Achievement>> GetPlayerAchievementsAsync(string steamId, string appId, CancellationToken ct = default);
-	void ClearCache();
 	/// <summary>
-	/// Frees the in-memory metadata cache to reduce idle memory usage.
-	/// The disk cache is kept so future lookups can still read from it.
+	/// Checks whether <paramref name="apiKey"/> is accepted by Steam.
 	/// </summary>
-	void ReleaseMemoryCache();
+	Task<ApiKeyValidationResult> ValidateApiKeyAsync(string apiKey, CancellationToken ct = default);
+	/// <summary>
+	/// Gets the cached metadata of a game, fetching and caching it when missing or outdated.
+	/// </summary>
+	Task<SteamGameMetadata?> GetSteamGameMetadataAsync(string appId, CancellationToken ct = default);
+	/// <summary>
+	/// Gets the global unlock percentage of every achievement of a game, keyed by achievement id.
+	/// </summary>
+	Task<Dictionary<string, double>> GetGlobalAchievementStatsAsync(string appId, CancellationToken ct = default);
+	/// <summary>
+	/// Gets the app ids of the games owned by a Steam user.
+	/// </summary>
+	Task<List<string>> GetOwnedGamesAsync(string steamId, CancellationToken ct = default);
+	/// <summary>
+	/// Gets the unlock state of a Steam user's achievements for a game.
+	/// </summary>
+	Task<List<Achievement>> GetPlayerAchievementsAsync(string steamId, string appId, CancellationToken ct = default);
+	/// <summary>
+	/// Drops both the in-memory and the disk metadata cache.
+	/// </summary>
+	void ClearCache();
 }
 
+/// <inheritdoc cref="ISteamApiService"/>
 public sealed class SteamApiService
 	: ISteamApiService
 	, IDisposable
@@ -60,6 +89,11 @@ public sealed class SteamApiService
 		Directory.CreateDirectory(CacheDir);
 	}
 
+	/// <inheritdoc/>
+	/// <returns>
+	/// <see cref="ApiKeyValidationResult.Unreachable"/> when Steam cannot be contacted, so callers can
+	/// tell a network outage apart from a genuinely bad key.
+	/// </returns>
 	public async Task<ApiKeyValidationResult> ValidateApiKeyAsync(
 		string apiKey,
 		CancellationToken ct = default)
@@ -90,6 +124,12 @@ public sealed class SteamApiService
 		}
 	}
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Lookups prefer the memory cache, then the disk cache, then Steam. A cached entry that is missing
+	/// achievements reported by Steam is considered outdated, because it means the game was extended after
+	/// it was cached, and is rebuilt from scratch rather than patched.
+	/// </remarks>
 	public async Task<SteamGameMetadata?> GetSteamGameMetadataAsync(
 		string appId,
 		CancellationToken ct = default)
@@ -97,116 +137,147 @@ public sealed class SteamApiService
 		if (_cache.TryGetValue(appId, out SteamGameMetadata? cached))
 			return cached;
 
-		// Check disk cache
-		string cacheFile = Path.Combine(CacheDir, $"{appId}.json");
-		if (File.Exists(cacheFile))
-		{
-			try
-			{
-				string cacheJson = await File.ReadAllTextAsync(cacheFile, ct);
-				SteamGameMetadata? cacheMetadata = JsonSerializer.Deserialize(cacheJson, AppJsonContext.Default.SteamGameMetadata);
-				if (cacheMetadata is not null)
-				{
-						Dictionary<string, SteamAchievementSchema> cacheLookup = new(cacheMetadata.Achievements, StringComparer.OrdinalIgnoreCase);
-						Dictionary<string, double> backfill = await GetGlobalAchievementStatsAsync(appId, ct);
-						foreach ((string? id, double pct) in backfill)
-						{
-							if (cacheLookup.TryGetValue(id, out SteamAchievementSchema? m))
-								m.GlobalPercentage = pct;
-							else
-								cacheMetadata.Achievements[id] = new SteamAchievementSchema { Id = id, Name = id, GlobalPercentage = pct };
-						}
-						try
-						{
-							await File.WriteAllTextAsync(cacheFile, JsonSerializer.Serialize(cacheMetadata, AppJsonContext.Default.SteamGameMetadata), ct);
-						}
-						catch { }
+		Dictionary<string, double>? globalStats = null;
+		SteamGameMetadata? staleMetadata = null;
 
-					_cache[appId] = cacheMetadata;
-					return cacheMetadata;
-				}
+		SteamGameMetadata? diskMetadata = await ReadDiskCacheAsync(appId, ct);
+		if (diskMetadata is not null)
+		{
+			globalStats = await GetGlobalAchievementStatsAsync(appId, ct);
+
+			// Achievements missing from the cache mean the game was extended on Steam's side, so rebuild it from scratch
+			if (HasUnknownAchievements(diskMetadata, globalStats))
+			{
+				staleMetadata = diskMetadata;
 			}
-			catch { }
+			else
+			{
+				ApplyGlobalPercentages(diskMetadata, globalStats);
+				await WriteDiskCacheAsync(appId, diskMetadata, ct);
+				_cache[appId] = diskMetadata;
+				return diskMetadata;
+			}
 		}
 
-		SteamGameMetadata metadata = new();
+		SteamGameMetadata metadata = await BuildMetadataAsync(appId, ct);
 
-		// Fetch the game's achievement schema from Steam
-		string apiKey = _settings.Settings.SteamApiKey;
-		if (!string.IsNullOrWhiteSpace(apiKey))
+		// The rebuild failed (offline or missing API key), so keep serving the previous cache
+		if (string.IsNullOrWhiteSpace(metadata.Name))
+			return staleMetadata ?? metadata;
+
+		globalStats ??= await GetGlobalAchievementStatsAsync(appId, ct);
+		ApplyGlobalPercentages(metadata, globalStats);
+
+		await WriteDiskCacheAsync(appId, metadata, ct);
+		_cache[appId] = metadata;
+		return metadata;
+	}
+
+	/// <summary>
+	/// Fetches the complete metadata of a game from Steam, without touching any cache.
+	/// </summary>
+	/// <returns>
+	/// Metadata with an empty <see cref="SteamGameMetadata.Name"/> when every source failed.
+	/// </returns>
+	private async Task<SteamGameMetadata> BuildMetadataAsync(
+		string appId,
+		CancellationToken ct = default)
+	{
+		(string schemaName, Dictionary<string, SteamAchievementSchema> achievements) = await FetchGameSchemaAsync(appId, ct);
+		SteamGameMetadata metadata = new()
 		{
-			try
-			{
-				string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&l={_settings.Settings.Language}&format=json";
-				string response = await _http.GetStringAsync(schemaUrl, ct);
-				using JsonDocument doc = JsonDocument.Parse(response);
+			Name = schemaName,
+			Achievements = achievements
+		};
 
-				JsonElement game = doc.RootElement.GetProperty("game");
-				if (game.TryGetProperty("gameName", out JsonElement gameName))
-					metadata.Name = gameName.GetString() ?? string.Empty;
-
-				if (game.TryGetProperty("availableGameStats", out JsonElement stats) &&
-					stats.TryGetProperty("achievements", out JsonElement achievements))
-				{
-					foreach (JsonElement ach in achievements.EnumerateArray())
-					{
-						string name = ach.GetProperty("name").GetString() ?? "";
-						metadata.Achievements[name] = new SteamAchievementSchema
-						{
-							Id = name,
-							Name = ach.TryGetProperty("displayName", out JsonElement dn) ? dn.GetString() ?? name : name,
-							Description = ach.TryGetProperty("description", out JsonElement desc) ? desc.GetString() ?? "" : "",
-							IconUri = ach.TryGetProperty("icon", out JsonElement icon) ? icon.GetString() ?? "" : "",
-							IconLockedUri = ach.TryGetProperty("icongray", out JsonElement iconGray) ? iconGray.GetString() ?? "" : "",
-							IsHidden = ach.TryGetProperty("hidden", out JsonElement hidden) && hidden.GetInt32() == 1
-						};
-					}
-				}
-			}
-			catch { }
-		}
-
-		// Use the Store API for name and image (more reliable than the schema's gameName)
+		// The Store API is more reliable than the schema's gameName, and provides the header image
 		SteamGameMetadata? basic = await GetBasicMetadataAsync(appId, ct);
 		if (basic is not null)
 		{
 			if (!string.IsNullOrWhiteSpace(basic.Name))
 				metadata.Name = basic.Name;
-			if (string.IsNullOrWhiteSpace(metadata.HeaderImageUri))
-				metadata.HeaderImageUri = basic.HeaderImageUri;
+			metadata.HeaderImageUri = basic.HeaderImageUri;
 		}
 
 		// Fall back to the CDN header image
 		if (string.IsNullOrWhiteSpace(metadata.HeaderImageUri))
 			metadata.HeaderImageUri = $"https://cdn.cloudflare.steamstatic.com/steam/apps/{appId}/header.jpg";
 
-		// Include global achievement percentages in the cached metadata
-		Dictionary<string, double> globalStats = await GetGlobalAchievementStatsAsync(appId, ct);
-		Dictionary<string, SteamAchievementSchema> achLookup = new(metadata.Achievements, StringComparer.OrdinalIgnoreCase);
-		foreach ((string? id, double pct) in globalStats)
-		{
-			if (achLookup.TryGetValue(id, out SteamAchievementSchema? m))
-				m.GlobalPercentage = pct;
-			else
-				metadata.Achievements[id] = new SteamAchievementSchema { Id = id, Name = id, GlobalPercentage = pct };
-		}
-
-		// Save to disk and memory cache
-		if (!string.IsNullOrWhiteSpace(metadata.Name))
-		{
-			try
-			{
-				string json = JsonSerializer.Serialize(metadata, AppJsonContext.Default.SteamGameMetadata);
-				await File.WriteAllTextAsync(cacheFile, json, ct);
-			}
-			catch { }
-
-			_cache[appId] = metadata;
-		}
-
 		return metadata;
 	}
 
+	/// <summary>
+	/// Tells whether <paramref name="globalStats"/> reports achievements that <paramref name="metadata"/> does not know about.
+	/// </summary>
+	private static bool HasUnknownAchievements(
+		SteamGameMetadata metadata,
+		Dictionary<string, double> globalStats)
+	{
+		HashSet<string> known = new(metadata.Achievements.Keys, StringComparer.OrdinalIgnoreCase);
+		return globalStats.Keys.Any(id => !known.Contains(id));
+	}
+
+	/// <summary>
+	/// Copies the global unlock percentages onto the achievements already known by <paramref name="metadata"/>.
+	/// Percentages without a matching achievement are ignored.
+	/// </summary>
+	private static void ApplyGlobalPercentages(
+		SteamGameMetadata metadata,
+		Dictionary<string, double> globalStats)
+	{
+		Dictionary<string, SteamAchievementSchema> lookup = new(metadata.Achievements, StringComparer.OrdinalIgnoreCase);
+		foreach ((string id, double percentage) in globalStats)
+		{
+			if (lookup.TryGetValue(id, out SteamAchievementSchema? achievement))
+				achievement.GlobalPercentage = percentage;
+		}
+	}
+
+	/// <summary>
+	/// Gets the path of the disk cache file of a game.
+	/// </summary>
+	private static string GetCacheFilePath(string appId) => Path.Combine(CacheDir, $"{appId}.json");
+
+	/// <summary>
+	/// Reads the disk cache of a game, returning <see langword="null"/> when it is missing or unreadable.
+	/// </summary>
+	private static async Task<SteamGameMetadata?> ReadDiskCacheAsync(
+		string appId,
+		CancellationToken ct = default)
+	{
+		string cacheFile = GetCacheFilePath(appId);
+		if (!File.Exists(cacheFile))
+			return null;
+
+		try
+		{
+			string json = await File.ReadAllTextAsync(cacheFile, ct);
+			return JsonSerializer.Deserialize(json, AppJsonContext.Default.SteamGameMetadata);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Writes the disk cache of a game, ignoring I/O failures since the cache is only an optimization.
+	/// </summary>
+	private static async Task WriteDiskCacheAsync(
+		string appId,
+		SteamGameMetadata metadata,
+		CancellationToken ct = default)
+	{
+		try
+		{
+			string json = JsonSerializer.Serialize(metadata, AppJsonContext.Default.SteamGameMetadata);
+			await File.WriteAllTextAsync(GetCacheFilePath(appId), json, ct);
+		}
+		catch { }
+	}
+
+	/// <inheritdoc/>
+	/// <returns>An empty dictionary when the game has no achievements or the request failed.</returns>
 	public async Task<Dictionary<string, double>> GetGlobalAchievementStatsAsync(
 		string appId,
 		CancellationToken ct = default)
@@ -238,6 +309,58 @@ public sealed class SteamApiService
 		return result;
 	}
 
+	/// <summary>
+	/// Fetches the achievement schema of a game, which holds the localized names, descriptions and icons.
+	/// </summary>
+	/// <returns>Empty values when no API key is configured or the request failed.</returns>
+	private async Task<(string Name, Dictionary<string, SteamAchievementSchema> Achievements)> FetchGameSchemaAsync(
+		string appId,
+		CancellationToken ct = default)
+	{
+		string gameTitle = string.Empty;
+		Dictionary<string, SteamAchievementSchema> result = new(StringComparer.OrdinalIgnoreCase);
+
+		string apiKey = _settings.Settings.SteamApiKey;
+		if (string.IsNullOrWhiteSpace(apiKey))
+			return (gameTitle, result);
+
+		try
+		{
+			string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&l={_settings.Settings.Language}&format=json";
+			string response = await _http.GetStringAsync(schemaUrl, ct);
+			using JsonDocument doc = JsonDocument.Parse(response);
+
+			JsonElement game = doc.RootElement.GetProperty("game");
+			if (game.TryGetProperty("gameName", out JsonElement gameName))
+				gameTitle = gameName.GetString() ?? string.Empty;
+
+			if (game.TryGetProperty("availableGameStats", out JsonElement stats) &&
+				stats.TryGetProperty("achievements", out JsonElement achievements))
+			{
+				foreach (JsonElement ach in achievements.EnumerateArray())
+				{
+					string name = ach.GetProperty("name").GetString() ?? "";
+					result[name] = new SteamAchievementSchema
+					{
+						Id = name,
+						Name = ach.TryGetProperty("displayName", out JsonElement dn) ? dn.GetString() ?? name : name,
+						Description = ach.TryGetProperty("description", out JsonElement desc) ? desc.GetString() ?? "" : "",
+						IconUri = ach.TryGetProperty("icon", out JsonElement icon) ? icon.GetString() ?? "" : "",
+						IconLockedUri = ach.TryGetProperty("icongray", out JsonElement iconGray) ? iconGray.GetString() ?? "" : "",
+						IsHidden = ach.TryGetProperty("hidden", out JsonElement hidden) && hidden.GetInt32() == 1
+					};
+				}
+			}
+		}
+		catch { }
+
+		return (gameTitle, result);
+	}
+
+	/// <summary>
+	/// Fetches the store name and header image of a game. Needs no API key.
+	/// </summary>
+	/// <returns><see langword="null"/> when the store has no entry for the game or the request failed.</returns>
 	private async Task<SteamGameMetadata?> GetBasicMetadataAsync(
 		string appId,
 		CancellationToken ct = default)
@@ -264,6 +387,8 @@ public sealed class SteamApiService
 		return null;
 	}
 
+	/// <inheritdoc/>
+	/// <returns>An empty list when no API key or Steam id is configured, or the request failed.</returns>
 	public async Task<List<string>> GetOwnedGamesAsync(
 		string steamId,
 		CancellationToken ct = default)
@@ -293,6 +418,11 @@ public sealed class SteamApiService
 		return appIds;
 	}
 
+	/// <inheritdoc/>
+	/// <returns>
+	/// Achievements carrying only ids and unlock state, since display data comes from
+	/// <see cref="GetSteamGameMetadataAsync"/>. Empty when the profile is private or the request failed.
+	/// </returns>
 	public async Task<List<Achievement>> GetPlayerAchievementsAsync(
 		string steamId,
 		string appId,
@@ -335,6 +465,7 @@ public sealed class SteamApiService
 		return achievements;
 	}
 
+	/// <inheritdoc/>
 	public void ClearCache()
 	{
 		_cache.Clear();
@@ -349,7 +480,8 @@ public sealed class SteamApiService
 		catch { }
 	}
 
-	public void ReleaseMemoryCache() => _cache.Clear();
-
+	/// <summary>
+	/// Disposes the underlying <see cref="HttpClient"/>.
+	/// </summary>
 	public void Dispose() => _http.Dispose();
 }
