@@ -44,6 +44,12 @@ public static class ApiKeyWarningMessages
 public interface ISteamApiService
 {
 	/// <summary>
+	/// Fired whenever the configured API key is checked, so the UI can report a key or connectivity
+	/// problem no matter which background operation ran into it.
+	/// </summary>
+	event EventHandler<ApiKeyValidationResult>? ApiKeyValidated;
+
+	/// <summary>
 	/// Checks whether <paramref name="apiKey"/> is accepted by Steam.
 	/// </summary>
 	Task<ApiKeyValidationResult> ValidateApiKeyAsync(string apiKey, CancellationToken ct = default);
@@ -74,20 +80,104 @@ public sealed class SteamApiService
 	: ISteamApiService
 	, IDisposable
 {
-	private readonly HttpClient _http;
 	private readonly ISettingsService _settings;
 	private readonly ConcurrentDictionary<string, SteamGameMetadata> _cache = new();
+
+	/// <summary>
+	/// Shared by every instance, because an <see cref="HttpClient"/> per instance would leak sockets: a
+	/// disposed one keeps its connections in TIME_WAIT for minutes.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="SocketsHttpHandler.PooledConnectionLifetime"/> recycles connections so that DNS changes
+	/// are still picked up, which a long lived client would otherwise miss.
+	/// </remarks>
+	private static readonly HttpClient Http = new(
+		new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) })
+	{
+		Timeout = TimeSpan.FromSeconds(10)
+	};
+
+	/// <summary>
+	/// One gate per game, so concurrent lookups of the same game fetch once instead of racing each other
+	/// over the network and over the same cache file.
+	/// </summary>
+	private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new();
+
 	private static readonly string CacheDir = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 		"TinyTrophy",
 		"cache");
+
+	/// <summary>
+	/// How long Steam is considered unreachable after a connection failure. Keeps a single timeout from
+	/// being paid again for every game while offline.
+	/// </summary>
+	private static readonly TimeSpan OfflineCooldown = TimeSpan.FromSeconds(30);
+	private long _offlineUntilTicks;
 
 	public SteamApiService(ISettingsService settings)
 	{
 		_settings = settings;
-		_http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 		Directory.CreateDirectory(CacheDir);
 	}
+
+	/// <summary>
+	/// Tells whether requests should be skipped because Steam recently failed to answer.
+	/// </summary>
+	private bool IsOffline => Interlocked.Read(ref _offlineUntilTicks) > DateTime.UtcNow.Ticks;
+
+	/// <summary>
+	/// Records the outcome of a request so later ones can fail fast while Steam is unreachable.
+	/// </summary>
+	private void SetOffline(bool offline) => Interlocked.Exchange(
+		ref _offlineUntilTicks,
+		offline ? DateTime.UtcNow.Add(OfflineCooldown).Ticks : 0);
+
+	/// <summary>
+	/// Tells whether an exception means Steam could not be reached, as opposed to answering with an error.
+	/// </summary>
+	private static bool IsConnectionFailure(Exception ex) => ex switch
+	{
+		// A status code means the server answered, so the connection itself is fine
+		HttpRequestException http => http.StatusCode is null,
+		// Not a caller cancellation at this point, so it is the HttpClient timeout
+		TaskCanceledException => true,
+		_ => false
+	};
+
+	/// <summary>
+	/// Sends a GET request and parses the JSON body, skipping the call entirely while Steam is unreachable.
+	/// </summary>
+	/// <returns><see langword="null"/> when the request was skipped, failed or returned invalid JSON.</returns>
+	/// <exception cref="OperationCanceledException">The caller cancelled <paramref name="ct"/>.</exception>
+	private async Task<JsonDocument?> GetJsonAsync(
+		string url,
+		CancellationToken ct = default)
+	{
+		if (IsOffline)
+			return null;
+
+		try
+		{
+			string response = await Http.GetStringAsync(url, ct);
+			// One success ends the cooldown early, so coming back online is noticed immediately
+			SetOffline(false);
+			return JsonDocument.Parse(response);
+		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			if (IsConnectionFailure(ex))
+				SetOffline(true);
+			return null;
+		}
+	}
+
+	/// <inheritdoc/>
+	public event EventHandler<ApiKeyValidationResult>? ApiKeyValidated;
 
 	/// <inheritdoc/>
 	/// <returns>
@@ -98,28 +188,45 @@ public sealed class SteamApiService
 		string apiKey,
 		CancellationToken ct = default)
 	{
+		ApiKeyValidationResult result = await CheckApiKeyAsync(apiKey, ct);
+		ApiKeyValidated?.Invoke(this, result);
+		return result;
+	}
+
+	/// <summary>
+	/// Performs the key check itself, leaving the reporting to <see cref="ValidateApiKeyAsync"/>.
+	/// </summary>
+	private async Task<ApiKeyValidationResult> CheckApiKeyAsync(
+		string apiKey,
+		CancellationToken ct)
+	{
 		if (string.IsNullOrWhiteSpace(apiKey))
 			return ApiKeyValidationResult.Invalid;
 
+		if (IsOffline)
+			return ApiKeyValidationResult.Unreachable;
+
 		try
 		{
-			HttpResponseMessage response = await _http.GetAsync($"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={apiKey}", ct);
+			// Any endpoint needing a key would do, but this one is cheap and not tied to a game
+			HttpResponseMessage response = await Http.GetAsync($"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={apiKey}", ct);
+			SetOffline(false);
 			if (response.IsSuccessStatusCode)
 				return ApiKeyValidationResult.Valid;
+			// Only these two mean Steam judged the key; anything else (500, 429, ...) is Steam having a
+			// bad day and says nothing about the key, so the user is not told to go fix it
 			if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
 				return ApiKeyValidationResult.Invalid;
 			return ApiKeyValidationResult.Unreachable;
 		}
-		catch (HttpRequestException)
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
 		{
-			return ApiKeyValidationResult.Unreachable;
+			throw;
 		}
-		catch (TaskCanceledException)
+		catch (Exception ex)
 		{
-			return ApiKeyValidationResult.Unreachable;
-		}
-		catch
-		{
+			if (IsConnectionFailure(ex))
+				SetOffline(true);
 			return ApiKeyValidationResult.Unreachable;
 		}
 	}
@@ -134,15 +241,41 @@ public sealed class SteamApiService
 		string appId,
 		CancellationToken ct = default)
 	{
+		// Checked before taking the gate so warm lookups, which are the vast majority, stay lock free
 		if (_cache.TryGetValue(appId, out SteamGameMetadata? cached))
 			return cached;
 
+		SemaphoreSlim gate = _gates.GetOrAdd(appId, _ => new SemaphoreSlim(1, 1));
+		await gate.WaitAsync(ct);
+		try
+		{
+			// The waiting turned this into a cache hit: the caller ahead did the fetch for everyone
+			if (_cache.TryGetValue(appId, out cached))
+				return cached;
+
+			return await LoadMetadataAsync(appId, ct);
+		}
+		finally
+		{
+			gate.Release();
+		}
+	}
+
+	/// <summary>
+	/// Resolves the metadata of a game from the disk cache or Steam. Callers must hold the gate of the game.
+	/// </summary>
+	private async Task<SteamGameMetadata?> LoadMetadataAsync(
+		string appId,
+		CancellationToken ct = default)
+	{
 		Dictionary<string, double>? globalStats = null;
 		SteamGameMetadata? staleMetadata = null;
 
 		SteamGameMetadata? diskMetadata = await ReadDiskCacheAsync(appId, ct);
 		if (diskMetadata is not null)
 		{
+			// Doubles as the freshness probe: it lists every achievement of the game and needs no API key,
+			// so it works even for users who never configured one
 			globalStats = await GetGlobalAchievementStatsAsync(appId, ct);
 
 			// Achievements missing from the cache mean the game was extended on Steam's side, so rebuild it from scratch
@@ -152,8 +285,13 @@ public sealed class SteamApiService
 			}
 			else
 			{
-				ApplyGlobalPercentages(diskMetadata, globalStats);
-				await WriteDiskCacheAsync(appId, diskMetadata, ct);
+				// Nothing came back (offline, or the game has no achievements), so leave the file untouched
+				if (globalStats.Count > 0)
+				{
+					ApplyGlobalPercentages(diskMetadata, globalStats);
+					await WriteDiskCacheAsync(appId, diskMetadata, ct);
+				}
+
 				_cache[appId] = diskMetadata;
 				return diskMetadata;
 			}
@@ -161,10 +299,12 @@ public sealed class SteamApiService
 
 		SteamGameMetadata metadata = await BuildMetadataAsync(appId, ct);
 
-		// The rebuild failed (offline or missing API key), so keep serving the previous cache
+		// A nameless result means every source failed, so an outdated cache still beats showing nothing.
+		// Returning without caching also lets the next call retry instead of freezing the failure in place.
 		if (string.IsNullOrWhiteSpace(metadata.Name))
 			return staleMetadata ?? metadata;
 
+		// Reused when the freshness probe above already fetched it, so a rebuild costs no extra request
 		globalStats ??= await GetGlobalAchievementStatsAsync(appId, ct);
 		ApplyGlobalPercentages(metadata, globalStats);
 
@@ -190,7 +330,8 @@ public sealed class SteamApiService
 			Achievements = achievements
 		};
 
-		// The Store API is more reliable than the schema's gameName, and provides the header image
+		// The schema is the only source of achievements, but its gameName is often an internal title, and
+		// it is skipped entirely without an API key. The store has neither limitation, so it wins on the name.
 		SteamGameMetadata? basic = await GetBasicMetadataAsync(appId, ct);
 		if (basic is not null)
 		{
@@ -199,7 +340,7 @@ public sealed class SteamApiService
 			metadata.HeaderImageUri = basic.HeaderImageUri;
 		}
 
-		// Fall back to the CDN header image
+		// Games missing from the store still have their image on the CDN, which follows a fixed URL shape
 		if (string.IsNullOrWhiteSpace(metadata.HeaderImageUri))
 			metadata.HeaderImageUri = $"https://cdn.cloudflare.steamstatic.com/steam/apps/{appId}/header.jpg";
 
@@ -213,6 +354,8 @@ public sealed class SteamApiService
 		SteamGameMetadata metadata,
 		Dictionary<string, double> globalStats)
 	{
+		// The two endpoints do not agree on the casing of achievement ids, so comparing them literally
+		// would report the whole game as new on every single lookup
 		HashSet<string> known = new(metadata.Achievements.Keys, StringComparer.OrdinalIgnoreCase);
 		return globalStats.Keys.Any(id => !known.Contains(id));
 	}
@@ -225,6 +368,8 @@ public sealed class SteamApiService
 		SteamGameMetadata metadata,
 		Dictionary<string, double> globalStats)
 	{
+		// A case insensitive view over the achievements, since the dictionary itself must keep the exact
+		// ids that the rest of the app matches against
 		Dictionary<string, SteamAchievementSchema> lookup = new(metadata.Achievements, StringComparer.OrdinalIgnoreCase);
 		foreach ((string id, double percentage) in globalStats)
 		{
@@ -254,6 +399,10 @@ public sealed class SteamApiService
 			string json = await File.ReadAllTextAsync(cacheFile, ct);
 			return JsonSerializer.Deserialize(json, AppJsonContext.Default.SteamGameMetadata);
 		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
+		{
+			throw;
+		}
 		catch
 		{
 			return null;
@@ -263,15 +412,43 @@ public sealed class SteamApiService
 	/// <summary>
 	/// Writes the disk cache of a game, ignoring I/O failures since the cache is only an optimization.
 	/// </summary>
+	/// <remarks>
+	/// The file is written aside and then moved into place, so a reader never observes a half written file
+	/// and a crash cannot leave a corrupted cache behind.
+	/// </remarks>
 	private static async Task WriteDiskCacheAsync(
 		string appId,
 		SteamGameMetadata metadata,
 		CancellationToken ct = default)
 	{
+		string cacheFile = GetCacheFilePath(appId);
+		// The thread id keeps two writers from fighting over the same temporary file
+		string tempFile = $"{cacheFile}.{Environment.CurrentManagedThreadId}.tmp";
 		try
 		{
 			string json = JsonSerializer.Serialize(metadata, AppJsonContext.Default.SteamGameMetadata);
-			await File.WriteAllTextAsync(GetCacheFilePath(appId), json, ct);
+			await File.WriteAllTextAsync(tempFile, json, ct);
+			File.Move(tempFile, cacheFile, overwrite: true);
+		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
+		{
+			DeleteQuietly(tempFile);
+			throw;
+		}
+		catch
+		{
+			DeleteQuietly(tempFile);
+		}
+	}
+
+	/// <summary>
+	/// Deletes a file, ignoring any failure.
+	/// </summary>
+	private static void DeleteQuietly(string path)
+	{
+		try
+		{
+			File.Delete(path);
 		}
 		catch { }
 	}
@@ -284,23 +461,27 @@ public sealed class SteamApiService
 	{
 		Dictionary<string, double> result = new(StringComparer.OrdinalIgnoreCase);
 
+		string url = $"https://api.steampowered.com/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?gameid={appId}&format=json";
+		using JsonDocument? doc = await GetJsonAsync(url, ct);
+		if (doc is null)
+			return result;
+
 		try
 		{
-			string url = $"https://api.steampowered.com/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?gameid={appId}&format=json";
-			string response = await _http.GetStringAsync(url, ct);
-			using JsonDocument doc = JsonDocument.Parse(response);
-
 			JsonElement achievements = doc.RootElement
 				.GetProperty("achievementpercentages")
 				.GetProperty("achievements");
 
 			foreach (JsonElement ach in achievements.EnumerateArray())
 			{
-				string name = ach.GetProperty("name").GetString() ?? "";
+				string name = ach.GetProperty("name").GetString() ?? string.Empty;
 				JsonElement percentRaw = ach.GetProperty("percent");
+				// Steam is inconsistent here and sends the percentage as a number or as a string, and the
+				// string form uses a dot even in locales where that is not the decimal separator
 				double percent = percentRaw.ValueKind == JsonValueKind.String
 					? double.Parse(percentRaw.GetString()!, CultureInfo.InvariantCulture)
 					: percentRaw.GetDouble();
+				// Rounding on Steam's side can push the value slightly past 100
 				result[name] = Math.Min(percent, 100.0);
 			}
 		}
@@ -320,16 +501,21 @@ public sealed class SteamApiService
 		string gameTitle = string.Empty;
 		Dictionary<string, SteamAchievementSchema> result = new(StringComparer.OrdinalIgnoreCase);
 
+		// This is the one endpoint that needs a key, which is why a keyless user still gets game names and
+		// unlock percentages but no achievement titles or icons
 		string apiKey = _settings.Settings.SteamApiKey;
 		if (string.IsNullOrWhiteSpace(apiKey))
 			return (gameTitle, result);
 
+		// The language decides the wording returned for every achievement, so a language change invalidates
+		// the cached copy of the whole game
+		string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&l={_settings.Settings.Language}&format=json";
+		using JsonDocument? doc = await GetJsonAsync(schemaUrl, ct);
+		if (doc is null)
+			return (gameTitle, result);
+
 		try
 		{
-			string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&l={_settings.Settings.Language}&format=json";
-			string response = await _http.GetStringAsync(schemaUrl, ct);
-			using JsonDocument doc = JsonDocument.Parse(response);
-
 			JsonElement game = doc.RootElement.GetProperty("game");
 			if (game.TryGetProperty("gameName", out JsonElement gameName))
 				gameTitle = gameName.GetString() ?? string.Empty;
@@ -365,12 +551,15 @@ public sealed class SteamApiService
 		string appId,
 		CancellationToken ct = default)
 	{
+		string url = $"https://store.steampowered.com/api/appdetails?appids={appId}";
+		using JsonDocument? doc = await GetJsonAsync(url, ct);
+		if (doc is null)
+			return null;
+
 		try
 		{
-			string url = $"https://store.steampowered.com/api/appdetails?appids={appId}";
-			string response = await _http.GetStringAsync(url, ct);
-			using JsonDocument doc = JsonDocument.Parse(response);
-
+			// The payload is keyed by app id, and a delisted or region locked game answers with success:false
+			// and no data at all, which is why both steps are probed rather than assumed
 			if (doc.RootElement.TryGetProperty(appId, out JsonElement appData) && appData.TryGetProperty("data", out JsonElement data))
 			{
 				SteamGameMetadata metadata = new()
@@ -398,12 +587,13 @@ public sealed class SteamApiService
 		if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId))
 			return appIds;
 
+		string url = $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key={apiKey}&steamid={steamId}&include_played_free_games=true&format=json";
+		using JsonDocument? doc = await GetJsonAsync(url, ct);
+		if (doc is null)
+			return appIds;
+
 		try
 		{
-			string url = $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key={apiKey}&steamid={steamId}&include_played_free_games=true&format=json";
-			string response = await _http.GetStringAsync(url, ct);
-			using JsonDocument doc = JsonDocument.Parse(response);
-
 			if (doc.RootElement.TryGetProperty("response", out JsonElement resp) && resp.TryGetProperty("games", out JsonElement games))
 			{
 				foreach (JsonElement game in games.EnumerateArray())
@@ -433,30 +623,28 @@ public sealed class SteamApiService
 		if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId))
 			return achievements;
 
+		string url = $"https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key={apiKey}&steamid={steamId}&appid={appId}&format=json";
+		using JsonDocument? doc = await GetJsonAsync(url, ct);
+		if (doc is null)
+			return achievements;
+
 		try
 		{
-			string url = $"https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key={apiKey}&steamid={steamId}&appid={appId}&format=json";
-			string response = await _http.GetStringAsync(url, ct);
-			using JsonDocument doc = JsonDocument.Parse(response);
-
-			if (doc.RootElement.TryGetProperty("playerstats", out JsonElement stats))
+			if (doc.RootElement.TryGetProperty("playerstats", out JsonElement stats) && stats.TryGetProperty("achievements", out JsonElement achs))
 			{
-				if (stats.TryGetProperty("achievements", out JsonElement achs))
+				foreach (JsonElement ach in achs.EnumerateArray())
 				{
-					foreach (JsonElement ach in achs.EnumerateArray())
-					{
-						string name = ach.GetProperty("apiname").GetString() ?? "";
-						int achieved = ach.TryGetProperty("achieved", out JsonElement a) ? a.GetInt32() : 0;
-						long unlockTime = ach.TryGetProperty("unlocktime", out JsonElement ut) ? ut.GetInt64() : 0;
+					string name = ach.GetProperty("apiname").GetString() ?? "";
+					int achieved = ach.TryGetProperty("achieved", out JsonElement a) ? a.GetInt32() : 0;
+					long unlockTime = ach.TryGetProperty("unlocktime", out JsonElement ut) ? ut.GetInt64() : 0;
 
-						achievements.Add(new Achievement
-						{
-							Id = name,
-							Name = name,
-							IsUnlocked = achieved == 1,
-							UnlockTime = unlockTime > 0 ? DateTimeOffset.FromUnixTimeSeconds(unlockTime).LocalDateTime : null,
-						});
-					}
+					achievements.Add(new Achievement
+					{
+						Id = name,
+						Name = name,
+						IsUnlocked = achieved == 1,
+						UnlockTime = unlockTime > 0 ? DateTimeOffset.FromUnixTimeSeconds(unlockTime).LocalDateTime : null,
+					});
 				}
 			}
 		}
@@ -469,11 +657,15 @@ public sealed class SteamApiService
 	public void ClearCache()
 	{
 		_cache.Clear();
+
+		// An explicit refresh should reach Steam even if it was unreachable a moment ago
+		SetOffline(false);
 		try
 		{
 			if (Directory.Exists(CacheDir))
 			{
-				foreach (string file in Directory.EnumerateFiles(CacheDir, "*.json"))
+				// Sweep leftover temporaries too, in case a write was interrupted
+				foreach (string file in Directory.EnumerateFiles(CacheDir, "*.json*"))
 					File.Delete(file);
 			}
 		}
@@ -481,7 +673,13 @@ public sealed class SteamApiService
 	}
 
 	/// <summary>
-	/// Disposes the underlying <see cref="HttpClient"/>.
+	/// Disposes the per game gates. The shared <see cref="HttpClient"/> outlives every instance and is
+	/// deliberately left alone.
 	/// </summary>
-	public void Dispose() => _http.Dispose();
+	public void Dispose()
+	{
+		foreach (SemaphoreSlim gate in _gates.Values)
+			gate.Dispose();
+		_gates.Clear();
+	}
 }

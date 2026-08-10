@@ -13,7 +13,7 @@ public sealed class DiskOnlyImageLoader
 	: BaseWebImageLoader
 {
 	private static readonly string CacheDir = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 		"TinyTrophy",
 		"imagecache");
 
