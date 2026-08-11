@@ -203,6 +203,9 @@ public sealed partial class FolderItemViewModel(WatchedFolderConfig config)
 
 	public bool IsDefault { get; } = config.IsDefault;
 
+	// Companion property so the view can bind directly instead of using a negated binding.
+	public bool IsRemovable => !IsDefault;
+
 	public WatchedFolderConfig ToConfig() => new()
 	{
 		Path = Path,

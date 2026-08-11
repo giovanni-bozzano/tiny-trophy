@@ -159,10 +159,11 @@ public sealed class SteamApiService
 
 		try
 		{
-			string response = await Http.GetStringAsync(url, ct);
+			using Stream stream = await Http.GetStreamAsync(url, ct);
+			JsonDocument doc = await JsonDocument.ParseAsync(stream, default, ct);
 			// One success ends the cooldown early, so coming back online is noticed immediately
 			SetOffline(false);
-			return JsonDocument.Parse(response);
+			return doc;
 		}
 		catch (OperationCanceledException) when (ct.IsCancellationRequested)
 		{
@@ -208,8 +209,13 @@ public sealed class SteamApiService
 
 		try
 		{
-			// Any endpoint needing a key would do, but this one is cheap and not tied to a game
-			HttpResponseMessage response = await Http.GetAsync($"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={apiKey}", ct);
+			// Any endpoint needing a key would do, but this one is cheap and not tied to a game.
+			// Only the status code matters, so the body is neither downloaded nor buffered: it lists every
+			// Steam endpoint and is far larger than anything else this service fetches.
+			using HttpResponseMessage response = await Http.GetAsync(
+				$"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={apiKey}",
+				HttpCompletionOption.ResponseHeadersRead,
+				ct);
 			SetOffline(false);
 			if (response.IsSuccessStatusCode)
 				return ApiKeyValidationResult.Valid;
@@ -348,16 +354,33 @@ public sealed class SteamApiService
 	}
 
 	/// <summary>
+	/// Copies achievements into a map that ignores the casing of the ids, which is how every lookup in
+	/// this service compares them.
+	/// </summary>
+	private static Dictionary<string, SteamAchievementSchema> ToLookup(Dictionary<string, SteamAchievementSchema> achievements)
+	{
+		Dictionary<string, SteamAchievementSchema> lookup = new(achievements.Count, StringComparer.OrdinalIgnoreCase);
+		foreach ((string id, SteamAchievementSchema achievement) in achievements)
+			lookup[id] = achievement;
+		return lookup;
+	}
+
+	/// <summary>
 	/// Tells whether <paramref name="globalStats"/> reports achievements that <paramref name="metadata"/> does not know about.
 	/// </summary>
 	private static bool HasUnknownAchievements(
 		SteamGameMetadata metadata,
 		Dictionary<string, double> globalStats)
 	{
-		// The two endpoints do not agree on the casing of achievement ids, so comparing them literally
-		// would report the whole game as new on every single lookup
-		HashSet<string> known = new(metadata.Achievements.Keys, StringComparer.OrdinalIgnoreCase);
-		return globalStats.Keys.Any(id => !known.Contains(id));
+		// Both maps ignore casing already, because the two endpoints do not agree on it and comparing the
+		// ids literally would report the whole game as new on every single lookup
+		foreach (string id in globalStats.Keys)
+		{
+			if (!metadata.Achievements.ContainsKey(id))
+				return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -368,12 +391,9 @@ public sealed class SteamApiService
 		SteamGameMetadata metadata,
 		Dictionary<string, double> globalStats)
 	{
-		// A case insensitive view over the achievements, since the dictionary itself must keep the exact
-		// ids that the rest of the app matches against
-		Dictionary<string, SteamAchievementSchema> lookup = new(metadata.Achievements, StringComparer.OrdinalIgnoreCase);
 		foreach ((string id, double percentage) in globalStats)
 		{
-			if (lookup.TryGetValue(id, out SteamAchievementSchema? achievement))
+			if (metadata.Achievements.TryGetValue(id, out SteamAchievementSchema? achievement))
 				achievement.GlobalPercentage = percentage;
 		}
 	}
@@ -396,8 +416,10 @@ public sealed class SteamApiService
 
 		try
 		{
-			string json = await File.ReadAllTextAsync(cacheFile, ct);
-			return JsonSerializer.Deserialize(json, AppJsonContext.Default.SteamGameMetadata);
+			using FileStream stream = File.OpenRead(cacheFile);
+			SteamGameMetadata? metadata = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.SteamGameMetadata, ct);
+			metadata?.Achievements = ToLookup(metadata.Achievements);
+			return metadata;
 		}
 		catch (OperationCanceledException) when (ct.IsCancellationRequested)
 		{
@@ -426,8 +448,10 @@ public sealed class SteamApiService
 		string tempFile = $"{cacheFile}.{Environment.CurrentManagedThreadId}.tmp";
 		try
 		{
-			string json = JsonSerializer.Serialize(metadata, AppJsonContext.Default.SteamGameMetadata);
-			await File.WriteAllTextAsync(tempFile, json, ct);
+			// Serialized straight into the file, so the JSON never exists as one big string in memory
+			using (FileStream stream = File.Create(tempFile))
+				await JsonSerializer.SerializeAsync(stream, metadata, AppJsonContext.Default.SteamGameMetadata, ct);
+
 			File.Move(tempFile, cacheFile, overwrite: true);
 		}
 		catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -525,14 +549,14 @@ public sealed class SteamApiService
 			{
 				foreach (JsonElement ach in achievements.EnumerateArray())
 				{
-					string name = ach.GetProperty("name").GetString() ?? "";
+					string name = ach.GetProperty("name").GetString() ?? string.Empty;
 					result[name] = new SteamAchievementSchema
 					{
 						Id = name,
 						Name = ach.TryGetProperty("displayName", out JsonElement dn) ? dn.GetString() ?? name : name,
-						Description = ach.TryGetProperty("description", out JsonElement desc) ? desc.GetString() ?? "" : "",
-						IconUri = ach.TryGetProperty("icon", out JsonElement icon) ? icon.GetString() ?? "" : "",
-						IconLockedUri = ach.TryGetProperty("icongray", out JsonElement iconGray) ? iconGray.GetString() ?? "" : "",
+						Description = ach.TryGetProperty("description", out JsonElement desc) ? desc.GetString() ?? string.Empty : string.Empty,
+						IconUri = ach.TryGetProperty("icon", out JsonElement icon) ? icon.GetString() ?? string.Empty : string.Empty,
+						IconLockedUri = ach.TryGetProperty("icongray", out JsonElement iconGray) ? iconGray.GetString() ?? string.Empty : string.Empty,
 						IsHidden = ach.TryGetProperty("hidden", out JsonElement hidden) && hidden.GetInt32() == 1
 					};
 				}
@@ -565,7 +589,7 @@ public sealed class SteamApiService
 				SteamGameMetadata metadata = new()
 				{
 					Name = data.TryGetProperty("name", out JsonElement name) ? name.GetString() ?? $"Game {appId}" : $"Game {appId}",
-					HeaderImageUri = data.TryGetProperty("header_image", out JsonElement img) ? img.GetString() ?? "" : ""
+					HeaderImageUri = data.TryGetProperty("header_image", out JsonElement img) ? img.GetString() ?? string.Empty : string.Empty
 				};
 
 				return metadata;
@@ -634,7 +658,7 @@ public sealed class SteamApiService
 			{
 				foreach (JsonElement ach in achs.EnumerateArray())
 				{
-					string name = ach.GetProperty("apiname").GetString() ?? "";
+					string name = ach.GetProperty("apiname").GetString() ?? string.Empty;
 					int achieved = ach.TryGetProperty("achieved", out JsonElement a) ? a.GetInt32() : 0;
 					long unlockTime = ach.TryGetProperty("unlocktime", out JsonElement ut) ? ut.GetInt64() : 0;
 
@@ -673,13 +697,8 @@ public sealed class SteamApiService
 	}
 
 	/// <summary>
-	/// Disposes the per game gates. The shared <see cref="HttpClient"/> outlives every instance and is
+	/// Frees the cached metadata. The shared <see cref="HttpClient"/> outlives every instance and is
 	/// deliberately left alone.
 	/// </summary>
-	public void Dispose()
-	{
-		foreach (SemaphoreSlim gate in _gates.Values)
-			gate.Dispose();
-		_gates.Clear();
-	}
+	public void Dispose() => _cache.Clear();
 }

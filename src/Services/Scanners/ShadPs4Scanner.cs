@@ -285,8 +285,8 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 				if (entry is null)
 					continue;
 
-				string unlockState = el.Attribute("unlockstate")?.Value ?? "";
-				string unlocked = el.Attribute("unlocked")?.Value ?? "";
+				string unlockState = el.Attribute("unlockstate")?.Value ?? string.Empty;
+				string unlocked = el.Attribute("unlocked")?.Value ?? string.Empty;
 
 				bool isUnlocked = unlockState.Equals("true", StringComparison.OrdinalIgnoreCase)
 					|| unlocked.Equals("yes", StringComparison.OrdinalIgnoreCase);

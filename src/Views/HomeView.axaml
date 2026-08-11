@@ -128,13 +128,13 @@
 										CornerRadius="4,0,0,4"
 										ClipToBounds="True">
 										<Image
-											asyncImageLoader:ImageLoader.Source="{Binding ImageUri}"
+											asyncImageLoader:ImageLoader.Source="{Binding ImageUri, Mode=OneTime}"
 											Stretch="UniformToFill" />
 									</Border>
 									<Grid Grid.Column="1" Margin="16,10" RowDefinitions="Auto,Auto,Auto">
 										<TextBlock
 											Grid.Row="0"
-											Text="{Binding Name}"
+											Text="{Binding Name, Mode=OneTime}"
 											FontSize="14"
 											FontWeight="SemiBold"
 											Foreground="#d9dfe4"
@@ -144,20 +144,20 @@
 											<ProgressBar
 												Grid.Column="0"
 												Classes="completion"
-												Value="{Binding CompletionPercentage}"
+												Value="{Binding CompletionPercentage, Mode=OneTime}"
 												Maximum="100"
 												Height="6" />
 											<TextBlock
 												Grid.Column="1"
 												Margin="10,0,0,0"
-												Text="{Binding CompletionText}"
+												Text="{Binding CompletionText, Mode=OneTime}"
 												FontSize="12"
 												Foreground="#8f98a0"
 												VerticalAlignment="Center" />
 										</Grid>
 										<TextBlock
 											Grid.Row="2"
-											Text="{Binding PercentText}"
+											Text="{Binding PercentText, Mode=OneTime}"
 											FontSize="12"
 											Foreground="#66c0f4"
 											FontWeight="SemiBold" />
