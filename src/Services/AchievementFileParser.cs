@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
@@ -34,6 +35,9 @@ public static class AchievementFileParser
 	// Possible key names for the unlock timestamp
 	private static readonly string[] TimeKeys =
 		["UnlockTime", "unlockTime", "unlock_time", "timestamp", "earned_time", "earnedTime", "UnlockedTime", "unlockedTime", "UNLOCKEDTIME", "Time", "time"];
+
+	// Extra fallback display-name keys used only by the object format
+	private static readonly string[] NameFallbackKeys = ["name", "Name"];
 
 	/// <summary>
 	/// Returns true if the file name is a known achievement data file.
@@ -146,35 +150,42 @@ public static class AchievementFileParser
 	{
 		try
 		{
-			string? json = File.ReadAllText(filePath);
-			using JsonDocument doc = JsonDocument.Parse(json);
-			JsonElement root = doc.RootElement;
+			// Parse forward-only from raw UTF-8 bytes with Utf8JsonReader instead of JsonDocument.
+			// JsonDocument builds and retains an in-memory tree for the whole file (and every
+			// materialized string is transcoded from UTF-8 back to UTF-16 through JsonDocument.GetString,
+			// regardless of the input encoding), so this avoids that document allocation entirely and
+			// only materializes the handful of string values actually kept per achievement.
+			byte[] utf8Json = File.ReadAllBytes(filePath);
+			Utf8JsonReader reader = new(utf8Json);
+			if (!reader.Read())
+				return [];
 
-			if (root.ValueKind == JsonValueKind.Array)
-				return ParseJsonArray(root);
-			if (root.ValueKind == JsonValueKind.Object)
-				return ParseJsonObject(root);
+			return reader.TokenType switch
+			{
+				JsonTokenType.StartArray => ParseJsonArray(ref reader),
+				JsonTokenType.StartObject => ParseJsonObject(ref reader),
+				_ => []
+			};
 		}
 		catch { }
 
 		return [];
 	}
 
-	private static List<Achievement> ParseJsonArray(JsonElement array)
+	private static List<Achievement> ParseJsonArray(ref Utf8JsonReader reader)
 	{
 		List<Achievement> achievements = [];
-		foreach (JsonElement item in array.EnumerateArray())
+		while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
 		{
-			if (item.ValueKind != JsonValueKind.Object)
+			if (reader.TokenType != JsonTokenType.StartObject)
+			{
+				reader.Skip();
 				continue;
+			}
 
-			string? id = GetJsonString(item, IdKeys);
+			(string? id, string? displayName, _, bool earned, DateTime? time) = ReadAchievementFields(ref reader, includeIdKeys: true);
 			if (string.IsNullOrEmpty(id))
 				continue;
-
-			string? displayName = GetJsonString(item, DisplayNameKeys) ?? "";
-			bool earned = GetJsonBool(item, EarnedKeys);
-			DateTime? time = GetJsonTime(item, TimeKeys);
 
 			if (!earned && time.HasValue)
 				earned = true;
@@ -182,7 +193,7 @@ public static class AchievementFileParser
 			achievements.Add(new Achievement
 			{
 				Id = id,
-				Name = displayName,
+				Name = displayName ?? string.Empty,
 				IsUnlocked = earned,
 				UnlockTime = time
 			});
@@ -190,32 +201,132 @@ public static class AchievementFileParser
 		return achievements;
 	}
 
-	private static List<Achievement> ParseJsonObject(JsonElement obj)
+	private static List<Achievement> ParseJsonObject(ref Utf8JsonReader reader)
 	{
 		List<Achievement> achievements = [];
-		foreach (JsonProperty prop in obj.EnumerateObject())
+		while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
 		{
-			if (prop.Value.ValueKind != JsonValueKind.Object)
+			if (reader.TokenType != JsonTokenType.PropertyName)
 				continue;
 
-			JsonElement item = prop.Value;
-			bool earned = GetJsonBool(item, EarnedKeys);
-			DateTime? time = GetJsonTime(item, TimeKeys);
+			string sectionName = reader.GetString() ?? string.Empty;
+			reader.Read();
 
+			if (reader.TokenType != JsonTokenType.StartObject)
+			{
+				reader.Skip();
+				continue;
+			}
+
+			(_, string? displayName, string? nameFallback, bool earned, DateTime? time) = ReadAchievementFields(ref reader, includeIdKeys: false);
 			if (!earned && time.HasValue)
 				earned = true;
 
-			string? displayName = GetJsonString(item, DisplayNameKeys) ?? GetJsonString(item, ["name", "Name"]) ?? "";
-
 			achievements.Add(new Achievement
 			{
-				Id = prop.Name,
-				Name = displayName,
+				Id = sectionName,
+				Name = displayName ?? nameFallback ?? string.Empty,
 				IsUnlocked = earned,
 				UnlockTime = time
 			});
 		}
 		return achievements;
+	}
+
+	// Reads the properties of the achievement object currently being iterated (reader positioned
+	// right after its StartObject) in a single forward pass, classifying each property name against
+	// the known key lists in priority order — mirroring the previous per-key TryGetProperty lookups
+	// but without materializing a JsonDocument tree or allocating strings for properties never used.
+	private static (string? Id, string? DisplayName, string? NameFallback, bool Earned, DateTime? Time) ReadAchievementFields(
+		ref Utf8JsonReader reader,
+		bool includeIdKeys)
+	{
+		string? id = null;
+		int idPriority = int.MaxValue;
+		string? displayName = null;
+		int namePriority = int.MaxValue;
+		string? nameFallback = null;
+		int nameFallbackPriority = int.MaxValue;
+		bool earned = false;
+		int earnedPriority = int.MaxValue;
+		DateTime? time = null;
+		int timePriority = int.MaxValue;
+
+		while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+		{
+			if (reader.TokenType != JsonTokenType.PropertyName)
+				continue;
+
+			int idIdx = includeIdKeys ? MatchKeyIndex(ref reader, IdKeys) : -1;
+			int nameIdx = MatchKeyIndex(ref reader, DisplayNameKeys);
+			int nameFallbackIdx = MatchKeyIndex(ref reader, NameFallbackKeys);
+			int earnedIdx = MatchKeyIndex(ref reader, EarnedKeys);
+			int timeIdx = MatchKeyIndex(ref reader, TimeKeys);
+
+			reader.Read();
+			JsonTokenType valueKind = reader.TokenType;
+
+			if (idIdx >= 0 && idIdx < idPriority && valueKind == JsonTokenType.String)
+			{
+				id = reader.GetString();
+				idPriority = idIdx;
+			}
+			else if (nameIdx >= 0 && nameIdx < namePriority && valueKind == JsonTokenType.String)
+			{
+				displayName = reader.GetString();
+				namePriority = nameIdx;
+			}
+			else if (nameFallbackIdx >= 0 && nameFallbackIdx < nameFallbackPriority && valueKind == JsonTokenType.String)
+			{
+				nameFallback = reader.GetString();
+				nameFallbackPriority = nameFallbackIdx;
+			}
+			else if (earnedIdx >= 0 && earnedIdx < earnedPriority)
+			{
+				earned = valueKind switch
+				{
+					JsonTokenType.True => true,
+					JsonTokenType.False => false,
+					JsonTokenType.Number => reader.GetInt32() == 1,
+					JsonTokenType.String => reader.GetString() is "1" or "true" or "yes",
+					_ => false
+				};
+				earnedPriority = earnedIdx;
+			}
+			else if (timeIdx >= 0 && timeIdx < timePriority)
+			{
+				long t = 0;
+				if (valueKind == JsonTokenType.Number)
+					t = reader.GetInt64();
+				else if (valueKind == JsonTokenType.String && long.TryParse(reader.GetString(), out long parsed))
+					t = parsed;
+
+				if (t > 0)
+				{
+					long normalized = t < 10_000_000_000 ? t : t / 1000;
+					time = DateTimeOffset.FromUnixTimeSeconds(normalized).LocalDateTime;
+					timePriority = timeIdx;
+				}
+			}
+			else if (valueKind is JsonTokenType.StartObject or JsonTokenType.StartArray)
+			{
+				reader.Skip();
+			}
+		}
+
+		return (id, displayName, nameFallback, earned, time);
+	}
+
+	// Zero-allocation match: compares the current PropertyName token against each candidate key
+	// (in priority order) without allocating the property name string.
+	private static int MatchKeyIndex(ref Utf8JsonReader reader, string[] keys)
+	{
+		for (int i = 0; i < keys.Length; i++)
+		{
+			if (reader.ValueTextEquals(keys[i]))
+				return i;
+		}
+		return -1;
 	}
 
 	/// <summary>
@@ -241,7 +352,7 @@ public static class AchievementFileParser
 					continue;
 				}
 
-				string? displayName = TryGetIniValue(values, DisplayNameKeys) ?? "";
+				string? displayName = TryGetIniValue(values, DisplayNameKeys) ?? string.Empty;
 				bool earned = IsIniEarned(values);
 				DateTime? unlockTime = ParseIniUnlockTime(values, ref earned);
 
@@ -454,62 +565,6 @@ public static class AchievementFileParser
 		return sections;
 	}
 
-	private static string? GetJsonString(
-		JsonElement elem,
-		ReadOnlySpan<string> keys)
-	{
-		foreach (string key in keys)
-		{
-			if (elem.TryGetProperty(key, out JsonElement val) && val.ValueKind == JsonValueKind.String)
-				return val.GetString();
-		}
-		return null;
-	}
-
-	private static bool GetJsonBool(
-		JsonElement elem,
-		ReadOnlySpan<string> keys)
-	{
-		foreach (string key in keys)
-		{
-			if (!elem.TryGetProperty(key, out JsonElement val))
-				continue;
-
-			return val.ValueKind switch
-			{
-				JsonValueKind.True => true,
-				JsonValueKind.Number => val.GetInt32() == 1,
-				JsonValueKind.String => val.GetString() is "1" or "true" or "yes",
-				_ => false
-			};
-		}
-		return false;
-	}
-
-	private static DateTime? GetJsonTime(
-		JsonElement elem,
-		ReadOnlySpan<string> keys)
-	{
-		foreach (string key in keys)
-		{
-			if (!elem.TryGetProperty(key, out JsonElement val))
-				continue;
-
-			long t = 0;
-			if (val.ValueKind == JsonValueKind.Number)
-				t = val.GetInt64();
-			else if (val.ValueKind == JsonValueKind.String && long.TryParse(val.GetString(), out long parsed))
-				t = parsed;
-
-			if (t > 0)
-			{
-				long normalized = t < 10_000_000_000 ? t : t / 1000;
-				return DateTimeOffset.FromUnixTimeSeconds(normalized).LocalDateTime;
-			}
-		}
-		return null;
-	}
-
 	private static int? TryGetIniNumber(
 		Dictionary<string, string> values,
 		params string[] keys)
@@ -527,20 +582,29 @@ public static class AchievementFileParser
 		out uint result)
 	{
 		result = 0;
-		string? clean = hex.Replace(" ", "");
-		if (clean.Length < 8)
+
+		// Copy out only the first 8 non-space hex digits instead of allocating a
+		// cleaned copy of the whole input on every call.
+		Span<char> digits = stackalloc char[8];
+		int count = 0;
+		foreach (char c in hex)
+		{
+			if (c == ' ')
+				continue;
+			digits[count++] = c;
+			if (count == 8)
+				break;
+		}
+
+		if (count < 8)
 			return false;
 
-		try
-		{
-			byte[] bytes = Convert.FromHexString(clean[..8]);
-			result = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
-			return true;
-		}
-		catch
-		{
+		Span<byte> bytes = stackalloc byte[4];
+		if (Convert.FromHexString(digits, bytes, out _, out int written) != OperationStatus.Done || written != 4)
 			return false;
-		}
+
+		result = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+		return true;
 	}
 
 	#endregion

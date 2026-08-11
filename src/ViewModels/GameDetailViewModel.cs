@@ -2,7 +2,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Text;
 using TinyTrophy.Models;
 using TinyTrophy.Services;
 
@@ -78,7 +77,7 @@ public sealed partial class GameDetailViewModel
 		_showHidden = showHidden;
 		_settingsService = settingsService;
 
-		if (Enum.TryParse<AchievementSortMode>(settingsService.Settings.GameDetailSort.Mode, out var savedSort))
+		if (Enum.TryParse(settingsService.Settings.GameDetailSort.Mode, out AchievementSortMode savedSort))
 			CurrentSort = savedSort;
 		SortAscending = settingsService.Settings.GameDetailSort.Ascending;
 
@@ -219,7 +218,7 @@ public sealed class AchievementItemViewModel(
 	public bool IsMasked => achievement.IsHidden && !showHidden && !achievement.IsUnlocked;
 
 	public string Id => achievement.Id;
-	public string Name => !string.IsNullOrEmpty(achievement.Name) ? achievement.Name : HumanizeId(achievement.Id);
+	public string Name => !string.IsNullOrEmpty(achievement.Name) ? achievement.Name : achievement.Id;
 	public string Description => achievement.Description;
 	public string IconUri => achievement.IsUnlocked ? achievement.IconUri : achievement.IconLockedUri;
 
@@ -230,7 +229,7 @@ public sealed class AchievementItemViewModel(
 
 	public bool IsUnlocked => achievement.IsUnlocked;
 	public DateTime? UnlockTime => achievement.UnlockTime;
-	public string UnlockTimeText => achievement.UnlockTime?.ToString("g") ?? "";
+	public string UnlockTimeText => achievement.UnlockTime?.ToString("g") ?? string.Empty;
 
 	// Visual styling for unlocked vs locked cards
 	public string CardBackground => IsUnlocked ? "#1c2b3c" : "#15202d";
@@ -240,7 +239,7 @@ public sealed class AchievementItemViewModel(
 	public string DescriptionForeground => IsUnlocked ? "#8f98a0" : "#6b7c8d";
 
 	public double GlobalPercentage => achievement.GlobalPercentage;
-	public string RarityText => achievement.GlobalPercentage > 0 ? $"{achievement.GlobalPercentage:F1}%" : "";
+	public string RarityText => achievement.GlobalPercentage > 0 ? $"{achievement.GlobalPercentage:F1}%" : string.Empty;
 	public string RarityLabel => achievement.GlobalPercentage > 0
 		? achievement.GlobalPercentage switch
 		{
@@ -255,7 +254,7 @@ public sealed class AchievementItemViewModel(
 			"g" => "Gold",
 			"s" => "Silver",
 			"b" => "Bronze",
-			_ => ""
+			_ => string.Empty
 		};
 	public string RarityColor => achievement.GlobalPercentage > 0
 		? achievement.GlobalPercentage switch
@@ -276,60 +275,6 @@ public sealed class AchievementItemViewModel(
 	public bool IsRare => achievement.GlobalPercentage is > 0 and <= 10
 		|| achievement.TrophyType is "Platinum" or "Gold";
 	public bool IsHidden => achievement.IsHidden;
-
-	/// <summary>
-	/// Converts IDs like "ACH_COMPLETE_GAME" or "completeGame" into "Complete Game".
-	/// </summary>
-	private static string HumanizeId(string id)
-	{
-		if (string.IsNullOrEmpty(id))
-			return id;
-
-		// Remove common prefixes
-		string stripped = id;
-		foreach (string? prefix in new[] { "ACH_", "ACHIEVE_", "ACHIEVEMENT_", "ach_", "achieve_", "achievement_" })
-		{
-			if (stripped.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-			{
-				stripped = stripped[prefix.Length..];
-				break;
-			}
-		}
-
-		// Replace underscores and hyphens with spaces
-		StringBuilder sb = new(stripped.Length + 8);
-		for (int i = 0; i < stripped.Length; i++)
-		{
-			char c = stripped[i];
-			if (c == '_' || c == '-')
-			{
-				sb.Append(' ');
-			}
-			else if (i > 0 && char.IsUpper(c) && char.IsLower(stripped[i - 1]))
-			{
-				// camelCase split
-				sb.Append(' ');
-				sb.Append(c);
-			}
-			else
-			{
-				sb.Append(c);
-			}
-		}
-
-		// Title-case the result
-		string result = sb.ToString().Trim();
-		if (result.Length == 0)
-			return id;
-
-		string[] words = result.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-		for (int i = 0; i < words.Length; i++)
-		{
-			if (words[i].Length > 0)
-				words[i] = char.ToUpper(words[i][0]) + words[i][1..].ToLower();
-		}
-		return string.Join(' ', words);
-	}
 }
 
 public enum AchievementSortMode

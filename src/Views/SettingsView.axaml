@@ -73,7 +73,7 @@
 											FontSize="12"
 											Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveFolderCommand}"
 											CommandParameter="{Binding}"
-											IsVisible="{Binding !IsDefault}"
+											IsVisible="{Binding IsRemovable, Mode=OneTime}"
 											VerticalAlignment="Center"
 											Padding="6,2"
 											Margin="4,0,0,0" />
