@@ -14,7 +14,7 @@ A lightweight achievement tracker that monitors your games across multiple platf
 ## Features
 
 - **Multi-platform support** — Track achievements from Steam, Steam emulators, and PS4 games via ShadPS4
-- **Truly lightweight** — Uses ~100 MB of RAM with a native UI that won't slow down your system while gaming
+- **Truly lightweight** — Uses ~100 MB of RAM (~10 MB while in background) with a native UI that won't slow down your system while gaming
 - **Single portable executable** — No installer, no runtime to pre-install, no dependencies to manage
 - **Real-time notifications** — Get desktop popups (with optional sound) the moment you unlock an achievement
 - **Live monitoring** — Watches your achievement folders for changes so progress is always up to date
@@ -24,13 +24,13 @@ A lightweight achievement tracker that monitors your games across multiple platf
 
 Tiny Trophy is designed to stay out of your way while you game. It uses native desktop technology — no bundled browser engine, no hidden background processes eating into your system resources.
 
-- **~100 MB of RAM** — Leaves more memory available for your game to use on textures, world streaming, and smoother frame pacing.
+- **~100 MB of RAM (~10 MB while in background)** — Leaves more memory available for your game to use on textures, world streaming, and smoother frame pacing.
 - **Minimal CPU usage** — Your processor stays focused on your game, not on rendering a tracker UI in the background.
 - **No stutters or frame drops** — Runs silently without competing for GPU composition or system resources while you play.
 
 ## Download
 
-Grab the latest release from the [Releases](https://github.com/giovanni-bozzano/tiny-trophy/releases) page.
+Grab the latest release from the [Releases](https://github.com/giovanni-bozzano/tiny-trophy/releases/latest) page.
 
 No installation needed — just download and run.
 
