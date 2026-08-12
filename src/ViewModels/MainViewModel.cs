@@ -10,6 +10,9 @@ public sealed partial class MainViewModel
 	private readonly ISteamApiService _steamApi;
 	private IGameWatcherService? _gameWatcher;
 
+	// Holds the view that was active while suspended, so it can be handed back on resume
+	private object? _suspendedView;
+
 	[ObservableProperty]
 	public partial object? CurrentView { get; set; }
 
@@ -100,5 +103,30 @@ public sealed partial class MainViewModel
 	{
 		CurrentView = vm;
 		CanGoBack = true;
+	}
+
+	/// <summary>
+	/// Clears <see cref="CurrentView"/> so nothing is bound while the window is hidden, letting its
+	/// images be unloaded and disposed. Call <see cref="ResumeView"/> to bring the same view back.
+	/// </summary>
+	public void SuspendView()
+	{
+		if (CurrentView is null)
+			return;
+
+		_suspendedView = CurrentView;
+		CurrentView = null;
+	}
+
+	/// <summary>
+	/// Restores the view that was active before <see cref="SuspendView"/> was called, if any.
+	/// </summary>
+	public void ResumeView()
+	{
+		if (_suspendedView is null)
+			return;
+
+		CurrentView = _suspendedView;
+		_suspendedView = null;
 	}
 }

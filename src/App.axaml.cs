@@ -240,6 +240,7 @@ public partial class App
 
 		Dispatcher.UIThread.Post(() =>
 		{
+			_mainWindow.RestoreViewIfNeeded();
 			_mainWindow.Show();
 			if (_mainWindow.WindowState == WindowState.Minimized)
 				_mainWindow.WindowState = WindowState.Normal;
