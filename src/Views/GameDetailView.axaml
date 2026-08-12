@@ -3,7 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:TinyTrophy.ViewModels"
 	xmlns:asyncImageLoader="using:AsyncImageLoader"
-	xmlns:services="using:TinyTrophy.Services"
+	xmlns:images="using:TinyTrophy.Infrastructure.Images"
 	x:Class="TinyTrophy.Views.GameDetailView"
 	x:DataType="vm:GameDetailViewModel"
 	Focusable="True">
@@ -18,7 +18,7 @@
 				<Border Grid.Column="0" Width="160" Height="60" CornerRadius="4" ClipToBounds="True" Background="#27374a" Margin="0,0,14,0">
 					<Image
 						asyncImageLoader:ImageLoader.Source="{Binding GameImageUri}"
-						services:ImageSourceDisposer.DisposeSource="True"
+						images:ImageSourceDisposer.DisposeSource="True"
 						Stretch="UniformToFill" />
 				</Border>
 				<StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -172,9 +172,9 @@
 								<Border Grid.Column="0" Background="{Binding IconBackground, Mode=OneTime}" CornerRadius="4,0,0,4" ClipToBounds="True">
 									<Grid>
 										<Image
-											services:SizedImageLoader.Source="{Binding DisplayIconUri, Mode=OneTime}"
-											services:SizedImageLoader.Loader="{x:Static services:ImageLoaders.Icon}"
-											services:ImageSourceDisposer.DisposeSource="True"
+											images:SizedImageLoader.Source="{Binding DisplayIconUri, Mode=OneTime}"
+											images:SizedImageLoader.Loader="{x:Static images:ImageLoaders.Icon}"
+											images:ImageSourceDisposer.DisposeSource="True"
 											Stretch="UniformToFill"
 											IsVisible="{Binding IsNotMasked, Mode=OneTime}" />
 										<!-- Lock placeholder for masked hidden achievements -->

@@ -3,7 +3,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:TinyTrophy.ViewModels"
 	xmlns:asyncImageLoader="using:AsyncImageLoader"
-	xmlns:services="using:TinyTrophy.Services"
+	xmlns:images="using:TinyTrophy.Infrastructure.Images"
 	x:Class="TinyTrophy.Views.HomeView"
 	x:DataType="vm:HomeViewModel"
 	Focusable="True">
@@ -130,7 +130,7 @@
 										ClipToBounds="True">
 										<Image
 											asyncImageLoader:ImageLoader.Source="{Binding ImageUri, Mode=OneTime}"
-											services:ImageSourceDisposer.DisposeSource="True"
+											images:ImageSourceDisposer.DisposeSource="True"
 											Stretch="UniformToFill" />
 									</Border>
 									<Grid Grid.Column="1" Margin="16,10" RowDefinitions="Auto,Auto,Auto">
