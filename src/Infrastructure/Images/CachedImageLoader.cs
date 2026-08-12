@@ -17,10 +17,7 @@ namespace TinyTrophy.Infrastructure.Images;
 public sealed class CachedImageLoader
 	: BaseWebImageLoader
 {
-	private static readonly string CacheDir = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-		"TinyTrophy",
-		"imagecache");
+	private static readonly string CacheDir = Path.Combine(AppPaths.CacheDir, "imagecache");
 
 	private const string PartialSuffix = ".partial";
 

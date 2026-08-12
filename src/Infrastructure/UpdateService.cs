@@ -10,11 +10,7 @@ public static class UpdateService
 	private const string GitHubOwner = "giovanni-bozzano";
 	private const string GitHubRepo = "tiny-trophy";
 
-	private static readonly string DataDir = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-		"TinyTrophy");
-
-	private static readonly string UpdatedFlagPath = Path.Combine(DataDir, "updated.flag");
+	private static readonly string UpdatedFlagPath = Path.Combine(AppPaths.DataDir, "updated.flag");
 
 	/// <summary>
 	/// Writes a flag file so the next launch knows an update just happened.
@@ -23,7 +19,7 @@ public static class UpdateService
 	{
 		try
 		{
-			Directory.CreateDirectory(DataDir);
+			Directory.CreateDirectory(AppPaths.DataDir);
 			File.WriteAllText(UpdatedFlagPath, newVersion);
 		}
 		catch { }

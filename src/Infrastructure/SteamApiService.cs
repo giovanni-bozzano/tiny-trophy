@@ -103,10 +103,7 @@ public sealed class SteamApiService
 	/// </summary>
 	private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new();
 
-	private static readonly string CacheDir = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-		"TinyTrophy",
-		"cache");
+	private static readonly string CacheDir = Path.Combine(AppPaths.CacheDir, "cache");
 
 	/// <summary>
 	/// How long Steam is considered unreachable after a connection failure. Keeps a single timeout from
@@ -118,7 +115,7 @@ public sealed class SteamApiService
 	public SteamApiService(ISettingsService settings)
 	{
 		_settings = settings;
-		Directory.CreateDirectory(CacheDir);
+		Directory.CreateDirectory(AppPaths.CacheDir);
 	}
 
 	/// <summary>

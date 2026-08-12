@@ -207,6 +207,11 @@ public partial class App
 	private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 	private const string StartupValueName = "TinyTrophy";
 
+	private static string LinuxAutostartDesktopFilePath => Path.Combine(
+		AppPaths.DataRootDir,
+		"autostart",
+		"TinyTrophy.desktop");
+
 	private static void UpdateStartupMenuText(NativeMenuItem item)
 	{
 		item.Header = IsStartupEnabled() ? "✓ Run on startup" : "Run on startup";
@@ -220,25 +225,65 @@ public partial class App
 
 	internal static bool IsStartupEnabled()
 	{
-		using RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, false);
-		return key?.GetValue(StartupValueName) is not null;
+		if (OperatingSystem.IsWindows())
+		{
+			using RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, false);
+			return key?.GetValue(StartupValueName) is not null;
+		}
+
+		if (OperatingSystem.IsLinux())
+			return File.Exists(LinuxAutostartDesktopFilePath);
+
+		return false;
 	}
 
 	internal static void SetStartupEnabled(bool enabled)
 	{
-		using RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
-		if (key is null)
-			return;
+		if (OperatingSystem.IsWindows())
+		{
+			using RegistryKey? key = Registry.CurrentUser.CreateSubKey(StartupRegistryKey, true);
+			if (key is null)
+				return;
 
-		if (enabled)
-		{
-			string? exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
-			if (exePath is not null)
-				key.SetValue(StartupValueName, $"\"{exePath}\"");
+			if (enabled)
+			{
+				string? exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+				if (exePath is not null)
+					key.SetValue(StartupValueName, $"\"{exePath}\"");
+			}
+			else
+			{
+				key.DeleteValue(StartupValueName, throwOnMissingValue: false);
+			}
+
+			return;
 		}
-		else
+
+		if (OperatingSystem.IsLinux())
 		{
-			key.DeleteValue(StartupValueName, throwOnMissingValue: false);
+			string desktopFilePath = LinuxAutostartDesktopFilePath;
+
+			if (enabled)
+			{
+				string? exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+				if (exePath is null)
+					return;
+
+				Directory.CreateDirectory(Path.GetDirectoryName(desktopFilePath)!);
+				string desktopFileContents =
+					$"""
+					[Desktop Entry]
+					Type=Application
+					Name=TinyTrophy
+					Exec="{exePath}"
+					Terminal=false
+					""";
+				File.WriteAllText(desktopFilePath, desktopFileContents);
+			}
+			else
+			{
+				File.Delete(desktopFilePath);
+			}
 		}
 	}
 

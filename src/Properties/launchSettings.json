@@ -1,0 +1,19 @@
+{
+	"$schema": "https://json.schemastore.org/launchsettings.json",
+	"profiles": {
+		"Windows": {
+			"commandName": "Project",
+			"environmentVariables": {
+				"DOTNET_ENVIRONMENT": "Development"
+			}
+		},
+		"WSL (Linux)": {
+			"commandName": "WSL2",
+			"distributionName": "Ubuntu",
+			"environmentVariables": {
+				"DOTNET_ENVIRONMENT": "Development",
+				"DISPLAY": ":0"
+			}
+		}
+	}
+}

@@ -14,11 +14,7 @@ public interface ISettingsService
 public sealed class SettingsService
 	: ISettingsService
 {
-	private static readonly string SettingsDir = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-		"TinyTrophy");
-
-	private static readonly string SettingsFile = Path.Combine(SettingsDir, "settings.json");
+	private static readonly string SettingsFile = Path.Combine(AppPaths.DataDir, "settings.json");
 
 	public AppSettings Settings { get; private set; } = new();
 
@@ -62,7 +58,7 @@ public sealed class SettingsService
 
 	public async Task SaveAsync()
 	{
-		Directory.CreateDirectory(SettingsDir);
+		Directory.CreateDirectory(AppPaths.DataDir);
 
 		// Only save custom folders (with portable paths) and explicitly disabled defaults
 		List<WatchedFolderConfig> original = Settings.WatchedFolders;
