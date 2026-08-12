@@ -52,6 +52,14 @@ public partial class App
 			// Set up system tray icon
 			SetupTrayIcon();
 
+			// Notifications allocate a bitmap/window of their own; once the last one closes, trim that
+			// back off if the app is still sitting in the tray (window hidden) at that point
+			AchievementNotificationWindow.AllNotificationsClosed += () =>
+			{
+				if (_mainWindow?.IsVisible == false)
+					MemoryTrimmer.CollectAndTrim();
+			};
+
 			desktop.ShutdownRequested += (_, _) =>
 			{
 				_services?.Dispose();

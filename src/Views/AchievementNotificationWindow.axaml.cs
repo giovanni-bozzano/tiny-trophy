@@ -24,6 +24,12 @@ public partial class AchievementNotificationWindow
 	private static readonly Queue<Achievement> s_pendingQueue = new();
 	private static DateTime s_lastSoundPlayed = DateTime.MinValue;
 
+	/// <summary>
+	/// Raised once no notification is showing or queued anymore. Used to release the memory a
+	/// notification allocates (icon bitmap, window, animation state) when the app is sitting in the tray.
+	/// </summary>
+	public static event Action? AllNotificationsClosed;
+
 	private static readonly HttpClient s_httpClient = new() { Timeout = TimeSpan.FromSeconds(5) };
 	private static byte[]? s_notificationSoundData;
 
@@ -94,6 +100,10 @@ public partial class AchievementNotificationWindow
 			Achievement next = s_pendingQueue.Dequeue();
 			AchievementNotificationWindow popup = new(next);
 			popup.Show();
+		}
+		else if (s_activeNotifications.Count == 0)
+		{
+			AllNotificationsClosed?.Invoke();
 		}
 	}
 
