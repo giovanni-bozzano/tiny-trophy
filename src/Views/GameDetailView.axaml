@@ -3,9 +3,14 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:TinyTrophy.ViewModels"
 	xmlns:asyncImageLoader="using:AsyncImageLoader"
+	xmlns:services="using:TinyTrophy.Services"
 	x:Class="TinyTrophy.Views.GameDetailView"
 	x:DataType="vm:GameDetailViewModel"
 	Focusable="True">
+	<UserControl.Resources>
+		<StreamGeometry x:Key="LockIconGeometry">M12,1A5,5 0 0,0 7,6V8H6A2,2 0 0,0 4,10V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V10A2,2 0 0,0 18,8H17V6A5,5 0 0,1 12,1M12,3A3,3 0 0,1 15,6V8H9V6A3,3 0 0,1 12,3M12,13A2,2 0 0,1 14,15A2,2 0 0,1 12,17A2,2 0 0,1 10,15A2,2 0 0,1 12,13Z</StreamGeometry>
+	</UserControl.Resources>
+
 	<Grid RowDefinitions="Auto,Auto,Auto,*">
 		<!-- Game Header (mirrors profile bar height/padding) -->
 		<Border Grid.Row="0" Padding="16,14" Background="#15202d" Height="88">
@@ -13,6 +18,7 @@
 				<Border Grid.Column="0" Width="160" Height="60" CornerRadius="4" ClipToBounds="True" Background="#27374a" Margin="0,0,14,0">
 					<Image
 						asyncImageLoader:ImageLoader.Source="{Binding GameImageUri}"
+						services:ImageSourceDisposer.DisposeSource="True"
 						Stretch="UniformToFill" />
 				</Border>
 				<StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -166,13 +172,15 @@
 								<Border Grid.Column="0" Background="{Binding IconBackground, Mode=OneTime}" CornerRadius="4,0,0,4" ClipToBounds="True">
 									<Grid>
 										<Image
-											asyncImageLoader:ImageLoader.Source="{Binding DisplayIconUri, Mode=OneTime}"
+											services:SizedImageLoader.Source="{Binding DisplayIconUri, Mode=OneTime}"
+											services:SizedImageLoader.Loader="{x:Static services:ImageLoaders.Icon}"
+											services:ImageSourceDisposer.DisposeSource="True"
 											Stretch="UniformToFill"
-											IsVisible="{Binding !IsMasked, Mode=OneTime}" />
+											IsVisible="{Binding IsNotMasked, Mode=OneTime}" />
 										<!-- Lock placeholder for masked hidden achievements -->
 										<Path
 											IsVisible="{Binding IsMasked, Mode=OneTime}"
-											Data="M12,1A5,5 0 0,0 7,6V8H6A2,2 0 0,0 4,10V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V10A2,2 0 0,0 18,8H17V6A5,5 0 0,1 12,1M12,3A3,3 0 0,1 15,6V8H9V6A3,3 0 0,1 12,3M12,13A2,2 0 0,1 14,15A2,2 0 0,1 12,17A2,2 0 0,1 10,15A2,2 0 0,1 12,13Z"
+											Data="{StaticResource LockIconGeometry}"
 											Fill="#3d5068"
 											Width="22"
 											Height="22"

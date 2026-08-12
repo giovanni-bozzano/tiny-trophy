@@ -209,53 +209,76 @@ public sealed partial class GameDetailViewModel
 	}
 }
 
-public sealed class AchievementItemViewModel(
-	Achievement achievement,
-	bool showHidden)
+public sealed class AchievementItemViewModel
 {
-	// True when this achievement is hidden and the user hasn't enabled "show hidden".
-	// Unlocked achievements always show their real info regardless.
-	public bool IsMasked => achievement.IsHidden && !showHidden && !achievement.IsUnlocked;
+	private readonly Achievement achievement;
+
+	public AchievementItemViewModel(
+		Achievement achievement,
+		bool showHidden)
+	{
+		this.achievement = achievement;
+
+		IsMasked = achievement.IsHidden && !showHidden && !achievement.IsUnlocked;
+		IsNotMasked = !IsMasked;
+
+		DisplayName = IsMasked ? "Hidden Achievement" : (!string.IsNullOrEmpty(achievement.Name) ? achievement.Name : achievement.Id);
+		DisplayDescription = IsMasked ? "Unlock this achievement to reveal its details." : achievement.Description;
+		DisplayIconUri = IsMasked ? string.Empty : (achievement.IsUnlocked ? achievement.IconUri : achievement.IconLockedUri);
+
+		UnlockTimeText = achievement.UnlockTime?.ToString("g") ?? string.Empty;
+
+		CardBackground = achievement.IsUnlocked ? "#1c2b3c" : "#15202d";
+		CardOpacity = achievement.IsUnlocked ? 1.0 : 0.55;
+		IconBackground = achievement.IsUnlocked ? "#27374a" : "#1c2b3c";
+		NameForeground = achievement.IsUnlocked ? "#d9dfe4" : "#8f98a0";
+		DescriptionForeground = achievement.IsUnlocked ? "#8f98a0" : "#6b7c8d";
+
+		RarityText = achievement.GlobalPercentage > 0 ? $"{achievement.GlobalPercentage:F1}%" : string.Empty;
+		RarityLabel = achievement.GlobalPercentage > 0
+			? achievement.GlobalPercentage switch
+			{
+				<= 5.0 => $"Ultra Rare \u00B7 {achievement.GlobalPercentage:F1}% of players",
+				<= 10.0 => $"Rare \u00B7 {achievement.GlobalPercentage:F1}% of players",
+				<= 25.0 => $"Uncommon \u00B7 {achievement.GlobalPercentage:F1}% of players",
+				_ => $"Common \u00B7 {achievement.GlobalPercentage:F1}% of players"
+			}
+			: achievement.TrophyType switch
+			{
+				"p" => "Platinum",
+				"g" => "Gold",
+				"s" => "Silver",
+				"b" => "Bronze",
+				_ => string.Empty
+			};
+	}
+
+	public bool IsMasked { get; }
+	public bool IsNotMasked { get; }
 
 	public string Id => achievement.Id;
 	public string Name => !string.IsNullOrEmpty(achievement.Name) ? achievement.Name : achievement.Id;
 	public string Description => achievement.Description;
 	public string IconUri => achievement.IsUnlocked ? achievement.IconUri : achievement.IconLockedUri;
 
-	// Masked variants shown when the achievement is hidden and locked
-	public string DisplayName => IsMasked ? "Hidden Achievement" : Name;
-	public string DisplayDescription => IsMasked ? "Unlock this achievement to reveal its details." : Description;
-	public string DisplayIconUri => IsMasked ? string.Empty : IconUri;
+	public string DisplayName { get; }
+	public string DisplayDescription { get; }
+	public string DisplayIconUri { get; }
 
 	public bool IsUnlocked => achievement.IsUnlocked;
 	public DateTime? UnlockTime => achievement.UnlockTime;
-	public string UnlockTimeText => achievement.UnlockTime?.ToString("g") ?? string.Empty;
+	public string UnlockTimeText { get; }
 
-	// Visual styling for unlocked vs locked cards
-	public string CardBackground => IsUnlocked ? "#1c2b3c" : "#15202d";
-	public double CardOpacity => IsUnlocked ? 1.0 : 0.55;
-	public string IconBackground => IsUnlocked ? "#27374a" : "#1c2b3c";
-	public string NameForeground => IsUnlocked ? "#d9dfe4" : "#8f98a0";
-	public string DescriptionForeground => IsUnlocked ? "#8f98a0" : "#6b7c8d";
+	public string CardBackground { get; }
+	public double CardOpacity { get; }
+	public string IconBackground { get; }
+	public string NameForeground { get; }
+	public string DescriptionForeground { get; }
 
 	public double GlobalPercentage => achievement.GlobalPercentage;
-	public string RarityText => achievement.GlobalPercentage > 0 ? $"{achievement.GlobalPercentage:F1}%" : string.Empty;
-	public string RarityLabel => achievement.GlobalPercentage > 0
-		? achievement.GlobalPercentage switch
-		{
-			<= 5.0 => $"Ultra Rare · {achievement.GlobalPercentage:F1}% of players",
-			<= 10.0 => $"Rare · {achievement.GlobalPercentage:F1}% of players",
-			<= 25.0 => $"Uncommon · {achievement.GlobalPercentage:F1}% of players",
-			_ => $"Common · {achievement.GlobalPercentage:F1}% of players"
-		}
-		: achievement.TrophyType switch
-		{
-			"p" => "Platinum",
-			"g" => "Gold",
-			"s" => "Silver",
-			"b" => "Bronze",
-			_ => string.Empty
-		};
+	public string RarityText { get; }
+	public string RarityLabel { get; }
+
 	public string RarityColor => achievement.GlobalPercentage > 0
 		? achievement.GlobalPercentage switch
 		{

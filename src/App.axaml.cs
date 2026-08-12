@@ -18,7 +18,6 @@ public partial class App
 	: Application
 {
 	private AppServices? _services;
-	private DiskOnlyImageLoader? _imageLoader;
 	private TrayIcon? _trayIcon;
 	private MainWindow? _mainWindow;
 
@@ -26,9 +25,8 @@ public partial class App
 	{
 		AvaloniaXamlLoader.Load(this);
 
-		// Images are cached to disk at the size they are drawn, and decoded again whenever they are shown
-		_imageLoader = new DiskOnlyImageLoader();
-		ImageLoader.AsyncImageLoader = _imageLoader;
+		// Images are resized once on download and cached to disk at the size they are drawn
+		ImageLoader.AsyncImageLoader = ImageLoaders.Default;
 
 		// Delete leftover files from a previous update
 		UpdateService.CleanupPreviousUpdate();
@@ -58,7 +56,7 @@ public partial class App
 			{
 				_services?.Dispose();
 				_trayIcon?.Dispose();
-				_imageLoader?.Dispose();
+				ImageLoaders.DisposeAll();
 			};
 
 			// Show setup if no API key has been configured yet
@@ -257,7 +255,7 @@ public partial class App
 
 			_services?.Dispose();
 			_trayIcon?.Dispose();
-			_imageLoader?.Dispose();
+			ImageLoaders.DisposeAll();
 
 			if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
 				desktop.Shutdown();

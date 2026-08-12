@@ -260,8 +260,8 @@ public sealed partial class GameItemViewModel(Game game)
 	public int UnlockedCount => Game.UnlockedCount;
 	public int TotalCount => Game.TotalCount;
 	public double CompletionPercentage => Game.CompletionPercentage;
-	public string CompletionText => $"{UnlockedCount}/{TotalCount}";
-	public string PercentText => $"{CompletionPercentage:F0}%";
+	public string CompletionText { get; } = $"{game.UnlockedCount}/{game.TotalCount}";
+	public string PercentText { get; } = $"{game.CompletionPercentage:F0}%";
 }
 
 public enum SortMode

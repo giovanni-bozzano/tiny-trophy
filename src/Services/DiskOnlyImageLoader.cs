@@ -6,14 +6,13 @@ using System.Text;
 namespace TinyTrophy.Services;
 
 /// <summary>
-/// Image loader that caches images on disk at their original downloaded size and decodes them on demand.
+/// Image loader that resizes images once, right after download, and caches them on disk at that size.
 /// </summary>
 /// <remarks>
 /// Decoded bitmaps live in unmanaged memory that the garbage collector barely accounts for, so holding on
 /// to them is what makes the process grow. Nothing is held here: every bitmap handed out belongs to the
 /// control that asked for it and goes away with it. Since the lists only realise the rows that are on
-/// screen, that bounds what the app holds to about a screenful. Reading one back costs a decode of the
-/// cached local file.
+/// screen, that bounds what the app holds to about a screenful.
 /// </remarks>
 public sealed class DiskOnlyImageLoader
 	: BaseWebImageLoader
@@ -28,35 +27,43 @@ public sealed class DiskOnlyImageLoader
 	private readonly Lock _downloadsLock = new();
 	private readonly Dictionary<string, Task> _downloads = [];
 
-	public DiskOnlyImageLoader()
+	// The pixel width every image is resized to and cached at once, as soon as it is downloaded.
+	// Controls are drawn at a logical width, but on any display with DPI scaling (e.g. 150%/200%) the
+	// physical pixel width is larger, so resizing to the logical width alone looks blurry once Avalonia
+	// upscales it to fill the control. Pass roughly 2x the logical display width this loader serves so
+	// the cached copy already covers HiDPI screens.
+	private readonly int _targetWidth;
+
+	public DiskOnlyImageLoader(int targetWidth)
 	{
+		_targetWidth = targetWidth;
+
 		Directory.CreateDirectory(CacheDir);
-		_ = Task.Run(DeleteStaleFiles);
+		Task.Run(DeleteStaleFiles);
 	}
 
-	protected override async Task<Bitmap?> LoadAsync(string url)
+	protected override async Task<Bitmap?> LoadAsync(string uri)
 	{
-		if (string.IsNullOrWhiteSpace(url))
+		if (string.IsNullOrWhiteSpace(uri))
 			return null;
 
-		Bitmap? cached = await LoadFromGlobalCache(url);
+		Bitmap? cached = await LoadFromGlobalCache(uri);
 		if (cached is not null)
 			return cached;
 
-		await DownloadOnceAsync(url);
+		await DownloadOnceAsync(uri);
 
-		return await LoadFromGlobalCache(url);
+		return await LoadFromGlobalCache(uri);
 	}
 
-	protected override Task<Bitmap?> LoadFromGlobalCache(string url)
+	protected override Task<Bitmap?> LoadFromGlobalCache(string uri)
 	{
-		string cachePath = GetCachePath(url);
+		string cachePath = GetCachePath(uri);
 		if (!File.Exists(cachePath))
 			return Task.FromResult<Bitmap?>(null);
-
 		try
 		{
-			// Already stored at the size it is drawn, so there is nothing to do but read it
+			// Already resized and stored at _targetWidth, so there is nothing to do but read it
 			using FileStream stream = File.OpenRead(cachePath);
 			return Task.FromResult<Bitmap?>(new Bitmap(stream));
 		}
@@ -74,13 +81,14 @@ public sealed class DiskOnlyImageLoader
 	}
 
 	/// <summary>
-	/// Stores a downloaded image at its original size.
+	/// Resizes a downloaded image to <see cref="_targetWidth"/> and stores it at that size, so later
+	/// reads are cheap file reads instead of a decode-and-downscale of a much larger original.
 	/// </summary>
 	protected override Task SaveToGlobalCache(
-		string url,
+		string uri,
 		byte[] imageBytes)
 	{
-		string cachePath = GetCachePath(url);
+		string cachePath = GetCachePath(uri);
 
 		// Written beside the real file and moved into place, so a download that dies halfway through
 		// cannot leave a truncated image behind for the next run to read
@@ -89,7 +97,7 @@ public sealed class DiskOnlyImageLoader
 		try
 		{
 			using MemoryStream source = new(imageBytes);
-			using Bitmap bitmap = new(source);
+			using Bitmap bitmap = Bitmap.DecodeToWidth(source, _targetWidth);
 
 			using (FileStream file = File.Create(partialPath))
 			{
@@ -118,34 +126,55 @@ public sealed class DiskOnlyImageLoader
 	/// The same image usually appears in more than one place at once, and without this each of them would
 	/// fetch and write the very same file.
 	/// </remarks>
-	private Task DownloadOnceAsync(string url)
+	private Task DownloadOnceAsync(string uri)
 	{
 		lock (_downloadsLock)
 		{
-			if (_downloads.TryGetValue(url, out Task? running))
+			if (_downloads.TryGetValue(uri, out Task? running))
 				return running;
 
 			// Started on another thread so that it cannot finish, and try to remove itself, before the
 			// line below has put it in
-			Task download = Task.Run(() => DownloadAsync(url));
+			Task download = Task.Run(() => DownloadAsync(uri));
 
-			_downloads[url] = download;
+			_downloads[uri] = download;
 			return download;
 		}
 	}
 
-	private async Task DownloadAsync(string url)
+	/// <summary>
+	/// Fetches the raw bytes for a URI, reading it straight off disk when it is a <c>file://</c> URI
+	/// instead of trying to download it.
+	/// </summary>
+	private async Task<byte[]?> LoadBytesAsync(string uri)
+	{
+		if (Uri.TryCreate(uri, UriKind.Absolute, out Uri? typedUri) && typedUri.IsFile)
+		{
+			try
+			{
+				return await File.ReadAllBytesAsync(typedUri.LocalPath);
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		return await LoadDataFromExternalAsync(uri);
+	}
+
+	private async Task DownloadAsync(string uri)
 	{
 		try
 		{
-			byte[]? bytes = await LoadDataFromExternalAsync(url);
+			byte[]? bytes = await LoadBytesAsync(uri);
 			if (bytes is not null)
-				await SaveToGlobalCache(url, bytes);
+				await SaveToGlobalCache(uri, bytes);
 		}
 		finally
 		{
 			lock (_downloadsLock)
-				_downloads.Remove(url);
+				_downloads.Remove(uri);
 		}
 	}
 
@@ -172,10 +201,10 @@ public sealed class DiskOnlyImageLoader
 		catch { }
 	}
 
-	private static string GetCachePath(string url)
+	private static string GetCachePath(string uri)
 	{
-		// Use a stable hash of the URL as the filename
-		string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(url)));
+		// Use a stable hash of the URI as the filename
+		string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(uri)));
 		return Path.Combine(CacheDir, hash);
 	}
 }

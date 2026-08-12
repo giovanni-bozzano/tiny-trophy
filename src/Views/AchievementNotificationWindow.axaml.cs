@@ -81,6 +81,9 @@ public partial class AchievementNotificationWindow
 
 	protected override void OnClosed(EventArgs e)
 	{
+		(AchievementIcon.Source as Bitmap)?.Dispose();
+		AchievementIcon.Source = null;
+
 		s_activeNotifications.Remove(this);
 		RepositionAll();
 		base.OnClosed(e);
