@@ -1,6 +1,6 @@
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Enrichers;
+namespace TinyTrophy.Infrastructure.Enrichers;
 
 /// <summary>
 /// Enriches games with metadata (names, icons, descriptions, global stats) after scanning.

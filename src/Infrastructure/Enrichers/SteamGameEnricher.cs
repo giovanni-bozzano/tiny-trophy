@@ -1,6 +1,6 @@
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Enrichers;
+namespace TinyTrophy.Infrastructure.Enrichers;
 
 /// <summary>
 /// Enriches Steam games (emulator and official) with metadata from the Steam Web API:

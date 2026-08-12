@@ -1,6 +1,6 @@
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Scanners;
+namespace TinyTrophy.Infrastructure.Scanners;
 
 /// <summary>
 /// Scans Steam emulator folders for games with achievement data.

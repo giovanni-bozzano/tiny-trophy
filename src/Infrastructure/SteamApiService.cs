@@ -4,7 +4,7 @@ using System.Net;
 using System.Text.Json;
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 /// <summary>
 /// Outcome of a Steam Web API key check.

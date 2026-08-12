@@ -42,6 +42,10 @@
 		<EmbeddedResource Include="Assets\Notification.wav" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Infrastructure\Images\" />
+	</ItemGroup>
+
 	<!-- Strip native .pdb files from publish output -->
 	<Target Name="RemoveNativePdbs" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(Configuration)' != 'Debug'">
 		<ItemGroup>

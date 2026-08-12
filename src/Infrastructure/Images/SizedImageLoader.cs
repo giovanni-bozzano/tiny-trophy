@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using System.Collections.Concurrent;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure.Images;
 
 /// <summary>
 /// Attached properties that work like <see cref="ImageLoader"/>'s Source property, but

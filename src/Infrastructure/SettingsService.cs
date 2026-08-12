@@ -1,8 +1,8 @@
 using System.Text.Json;
+using TinyTrophy.Infrastructure.Scanners;
 using TinyTrophy.Models;
-using TinyTrophy.Services.Scanners;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 public interface ISettingsService
 {

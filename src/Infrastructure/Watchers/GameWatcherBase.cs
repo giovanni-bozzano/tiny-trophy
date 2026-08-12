@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Watchers;
+namespace TinyTrophy.Infrastructure.Watchers;
 
 /// <summary>
 /// Base class for game watchers providing shared debouncing and known-state diffing infrastructure.

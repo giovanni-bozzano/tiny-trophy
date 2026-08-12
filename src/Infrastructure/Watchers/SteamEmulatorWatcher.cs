@@ -1,7 +1,7 @@
+using TinyTrophy.Infrastructure.Scanners;
 using TinyTrophy.Models;
-using TinyTrophy.Services.Scanners;
 
-namespace TinyTrophy.Services.Watchers;
+namespace TinyTrophy.Infrastructure.Watchers;
 
 /// <summary>
 /// Watches Steam emulator watched folders for achievement file changes.
@@ -12,7 +12,6 @@ public sealed class SteamEmulatorWatcher(
 	ISteamApiService steamApi)
 	: GameWatcherBase
 {
-
 	protected override void InitializeKnownState()
 	{
 		foreach (WatchedFolderConfig folder in settings.Settings.WatchedFolders)

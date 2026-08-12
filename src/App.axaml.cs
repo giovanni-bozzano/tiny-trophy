@@ -7,8 +7,9 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Win32;
 using System.Diagnostics;
+using TinyTrophy.Infrastructure;
+using TinyTrophy.Infrastructure.Images;
 using TinyTrophy.Models;
-using TinyTrophy.Services;
 using TinyTrophy.ViewModels;
 using TinyTrophy.Views;
 

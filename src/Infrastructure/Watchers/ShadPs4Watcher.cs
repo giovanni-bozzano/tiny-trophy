@@ -1,7 +1,7 @@
+using TinyTrophy.Infrastructure.Scanners;
 using TinyTrophy.Models;
-using TinyTrophy.Services.Scanners;
 
-namespace TinyTrophy.Services.Watchers;
+namespace TinyTrophy.Infrastructure.Watchers;
 
 /// <summary>
 /// Watches ShadPS4 trophy progress files for newly unlocked achievements.

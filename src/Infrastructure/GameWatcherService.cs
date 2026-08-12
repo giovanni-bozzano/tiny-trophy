@@ -1,7 +1,7 @@
+using TinyTrophy.Infrastructure.Watchers;
 using TinyTrophy.Models;
-using TinyTrophy.Services.Watchers;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 /// <summary>
 /// Composite service that coordinates all registered <see cref="IGameWatcher"/> instances.

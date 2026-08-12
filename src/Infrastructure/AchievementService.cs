@@ -1,8 +1,8 @@
+using TinyTrophy.Infrastructure.Enrichers;
+using TinyTrophy.Infrastructure.Scanners;
 using TinyTrophy.Models;
-using TinyTrophy.Services.Enrichers;
-using TinyTrophy.Services.Scanners;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 /// <summary>
 /// Aggregates achievements from all configured parsers and merges duplicates.

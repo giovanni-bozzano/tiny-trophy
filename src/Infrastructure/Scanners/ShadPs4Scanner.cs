@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Scanners;
+namespace TinyTrophy.Infrastructure.Scanners;
 
 /// <summary>
 /// Scans the ShadPS4 emulator trophy directories for PS4 achievements.

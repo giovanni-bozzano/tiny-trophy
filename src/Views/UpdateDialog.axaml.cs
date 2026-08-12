@@ -1,8 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using TinyTrophy.Infrastructure;
 using TinyTrophy.Models;
-using TinyTrophy.Services;
 
 namespace TinyTrophy.Views;
 

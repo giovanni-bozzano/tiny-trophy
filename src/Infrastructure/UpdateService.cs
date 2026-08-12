@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 public static class UpdateService
 {

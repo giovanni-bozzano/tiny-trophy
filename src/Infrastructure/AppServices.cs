@@ -1,10 +1,9 @@
-using TinyTrophy.Services;
-using TinyTrophy.Services.Enrichers;
-using TinyTrophy.Services.Scanners;
-using TinyTrophy.Services.Watchers;
+using TinyTrophy.Infrastructure.Enrichers;
+using TinyTrophy.Infrastructure.Scanners;
+using TinyTrophy.Infrastructure.Watchers;
 using TinyTrophy.ViewModels;
 
-namespace TinyTrophy;
+namespace TinyTrophy.Infrastructure;
 
 /// <summary>
 /// Composition root of the application: builds the object graph once and owns its lifetime.

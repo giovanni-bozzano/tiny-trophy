@@ -3,7 +3,7 @@ using Avalonia.Media.Imaging;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure.Images;
 
 /// <summary>
 /// Image loader that resizes images once, right after download, and caches them on disk at that size.
@@ -14,7 +14,7 @@ namespace TinyTrophy.Services;
 /// control that asked for it and goes away with it. Since the lists only realise the rows that are on
 /// screen, that bounds what the app holds to about a screenful.
 /// </remarks>
-public sealed class DiskOnlyImageLoader
+public sealed class CachedImageLoader
 	: BaseWebImageLoader
 {
 	private static readonly string CacheDir = Path.Combine(
@@ -34,7 +34,7 @@ public sealed class DiskOnlyImageLoader
 	// the cached copy already covers HiDPI screens.
 	private readonly int _targetWidth;
 
-	public DiskOnlyImageLoader(int targetWidth)
+	public CachedImageLoader(int targetWidth)
 	{
 		_targetWidth = targetWidth;
 

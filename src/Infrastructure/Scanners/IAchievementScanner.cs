@@ -1,6 +1,6 @@
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Scanners;
+namespace TinyTrophy.Infrastructure.Scanners;
 
 public interface IAchievementScanner
 {

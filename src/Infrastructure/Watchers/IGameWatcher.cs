@@ -1,6 +1,6 @@
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Watchers;
+namespace TinyTrophy.Infrastructure.Watchers;
 
 /// <summary>
 /// Monitors file-system changes for a specific achievement source and detects newly unlocked achievements.

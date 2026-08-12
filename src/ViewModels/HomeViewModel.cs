@@ -1,8 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using TinyTrophy.Infrastructure;
 using TinyTrophy.Models;
-using TinyTrophy.Services;
 
 namespace TinyTrophy.ViewModels;
 

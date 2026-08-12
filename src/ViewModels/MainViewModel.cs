@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using TinyTrophy.Services;
+using TinyTrophy.Infrastructure;
 
 namespace TinyTrophy.ViewModels;
 

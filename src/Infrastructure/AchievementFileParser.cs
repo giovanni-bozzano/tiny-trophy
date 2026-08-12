@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 /// <summary>
 /// Unified parser for achievement save files.

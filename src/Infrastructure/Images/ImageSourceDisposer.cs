@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure.Images;
 
 public sealed class ImageSourceDisposer
 {

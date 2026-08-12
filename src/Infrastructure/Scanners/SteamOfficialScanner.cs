@@ -1,6 +1,6 @@
 using TinyTrophy.Models;
 
-namespace TinyTrophy.Services.Scanners;
+namespace TinyTrophy.Infrastructure.Scanners;
 
 /// <summary>
 /// Fetches the user's official Steam achievements via the Steam Web API.

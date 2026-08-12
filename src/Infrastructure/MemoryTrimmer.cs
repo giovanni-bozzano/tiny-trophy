@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
-namespace TinyTrophy.Services;
+namespace TinyTrophy.Infrastructure;
 
 /// <summary>
 /// Forces freed managed memory to actually be handed back to the OS.
