@@ -533,7 +533,7 @@ public sealed class SteamApiService
 
 		// The language decides the wording returned for every achievement, so a language change invalidates
 		// the cached copy of the whole game
-		string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&l={_settings.Settings.Language}&format=json";
+		string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&format=json";
 		using JsonDocument? doc = await GetJsonAsync(schemaUrl, ct);
 		if (doc is null)
 			return (gameTitle, result);
