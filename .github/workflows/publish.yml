@@ -19,21 +19,17 @@ jobs:
       with:
         fetch-depth: 0
 
-    # Install the .NET SDK
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 10.0.x
 
-    # Publish the Windows x64 application
-    - name: Publish application
-      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish/tinytrophy_windows_amd64.exe
+    - name: Publish Windows x64 application
+      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish -p:AssemblyName=tinytrophy_windows_amd64.exe
 
-    # Publish the Linux x64 application
-    - name: Publish application
-      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish/tinytrophy_linux_amd64
+    - name: Publish Linux x64 application
+      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish -p:AssemblyName=tinytrophy_linux_amd64
 
-    # Upload the entire publish folder containing the .exe and required files
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v7
       with:
