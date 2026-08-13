@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TinyTrophy.Infrastructure;
+using TinyTrophy.Infrastructure.Scanners;
 
 namespace TinyTrophy.ViewModels;
 
@@ -79,6 +80,7 @@ public sealed partial class MainViewModel
 	private async Task RefreshMetadataAsync()
 	{
 		_steamApi.ClearCache();
+		SteamEmulatorScanner.ClearExpandedPathCache();
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
 		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);

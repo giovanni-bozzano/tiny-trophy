@@ -68,6 +68,12 @@ public sealed partial class SettingsViewModel
 	[ObservableProperty]
 	public partial string StatusMessage { get; set; } = string.Empty;
 
+	[ObservableProperty]
+	public partial bool IsDebugPanelVisible { get; set; }
+
+	[ObservableProperty]
+	public partial ObservableCollection<WatchedDirectoryDebugInfo> DebugWatchedDirectories { get; set; } = [];
+
 	public bool IsLinux { get; } = OperatingSystem.IsLinux();
 
 	public string[] AvailableLanguages { get; } = ["english"];
@@ -236,6 +242,32 @@ public sealed partial class SettingsViewModel
 			return;
 
 		await _checkForUpdate();
+	}
+
+	/// <summary>
+	/// Toggles the hidden diagnostics panel that shows every candidate path each watched directory
+	/// expands to (including Proton prefix candidates on Linux), refreshing it against the currently
+	/// unsaved in-memory directory lists whenever it's shown.
+	/// </summary>
+	[RelayCommand]
+	private void ToggleDebugPanel()
+	{
+		IsDebugPanelVisible = !IsDebugPanelVisible;
+		if (IsDebugPanelVisible)
+			RefreshDebugPanel();
+	}
+
+	[RelayCommand]
+	private void RefreshDebugPanel()
+	{
+		AppSettings snapshot = new()
+		{
+			WatchedDirectories = [.. WatchedDirectories.Select(d => d.ToConfig())],
+			ProtonPrefixDirectories = [.. ProtonPrefixDirectories.Select(d => d.ToConfig())]
+		};
+
+		DebugWatchedDirectories = new ObservableCollection<WatchedDirectoryDebugInfo>(
+			SteamEmulatorScanner.DebugExpandAllWatchedDirectories(snapshot));
 	}
 }
 

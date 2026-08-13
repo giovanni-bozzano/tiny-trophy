@@ -10,42 +10,19 @@
 	<UserControl.Resources>
 		<StreamGeometry x:Key="LockIconGeometry">M12,1A5,5 0 0,0 7,6V8H6A2,2 0 0,0 4,10V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V10A2,2 0 0,0 18,8H17V6A5,5 0 0,1 12,1M12,3A3,3 0 0,1 15,6V8H9V6A3,3 0 0,1 12,3M12,13A2,2 0 0,1 14,15A2,2 0 0,1 12,17A2,2 0 0,1 10,15A2,2 0 0,1 12,13Z</StreamGeometry>
 	</UserControl.Resources>
-
 	<Grid RowDefinitions="Auto,Auto,Auto,*">
 		<!-- Game Header (mirrors profile bar height/padding) -->
 		<Border Grid.Row="0" Padding="16,14" Background="#15202d" Height="88">
 			<Grid ColumnDefinitions="Auto,*,Auto">
 				<Border Grid.Column="0" Width="160" Height="60" CornerRadius="4" ClipToBounds="True" Background="#27374a" Margin="0,0,14,0">
-					<Image
-						asyncImageLoader:ImageLoader.Source="{Binding GameImageUri}"
-						images:ImageSourceDisposer.DisposeSource="True"
-						Stretch="UniformToFill" />
+					<Image asyncImageLoader:ImageLoader.Source="{Binding GameImageUri}" images:ImageSourceDisposer.DisposeSource="True" Stretch="UniformToFill" />
 				</Border>
 				<StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-					<TextBlock
-						Text="{Binding GameName}"
-						FontSize="20"
-						FontWeight="Bold"
-						Foreground="#d9dfe4"
-						TextTrimming="CharacterEllipsis" />
-					<Border
-						x:Name="AppIdBorder"
-						Cursor="Hand"
-						Background="Transparent"
-						HorizontalAlignment="Left"
-						ToolTip.Tip="Click to copy App ID"
-						PointerPressed="OnAppIdPointerPressed">
+					<TextBlock Text="{Binding GameName}" FontSize="20" FontWeight="Bold" Foreground="#d9dfe4" TextTrimming="CharacterEllipsis" />
+					<Border x:Name="AppIdBorder" Cursor="Hand" Background="Transparent" HorizontalAlignment="Left" ToolTip.Tip="Click to copy App ID" PointerPressed="OnAppIdPointerPressed">
 						<Panel>
-							<TextBlock
-								Text="{Binding GameAppId, StringFormat='App ID: {0}'}"
-								FontSize="11"
-								Foreground="#6b7c8d" />
-							<Popup
-								x:Name="CopiedPopup"
-								PlacementTarget="{Binding #AppIdBorder}"
-								Placement="Bottom"
-								IsLightDismissEnabled="False"
-								VerticalOffset="4">
+							<TextBlock Text="{Binding GameAppId, StringFormat='App ID: {0}'}" FontSize="11" Foreground="#6b7c8d" />
+							<Popup x:Name="CopiedPopup" PlacementTarget="{Binding #AppIdBorder}" Placement="Bottom" IsLightDismissEnabled="False" VerticalOffset="4">
 								<Border Background="#27374a" CornerRadius="4" Padding="8,4">
 									<TextBlock Text="Copied!" FontSize="11" />
 								</Border>
@@ -53,12 +30,7 @@
 						</Panel>
 					</Border>
 					<Grid ColumnDefinitions="*,Auto" MaxWidth="340" HorizontalAlignment="Left" Margin="0,2,0,0">
-						<ProgressBar
-							Grid.Column="0"
-							Classes="completion"
-							Value="{Binding CompletionPercentage}"
-							Maximum="100"
-							Height="6" />
+						<ProgressBar Grid.Column="0" Classes="completion" Value="{Binding CompletionPercentage}" Maximum="100" Height="6" />
 						<TextBlock Grid.Column="1" Margin="10,0,0,0" FontSize="13" Foreground="#66c0f4" VerticalAlignment="Center">
 							<TextBlock.Text>
 								<MultiBinding StringFormat="{}{0}/{1} ({2:F0}%)">
@@ -70,22 +42,10 @@
 						</TextBlock>
 					</Grid>
 				</StackPanel>
-				<Button
-					Grid.Column="2"
-					Classes="sort"
-					VerticalAlignment="Bottom"
-					Command="{Binding OpenFolderCommand}"
-					IsVisible="{Binding HasFolder}"
-					ToolTip.Tip="Open achievement file folder">
+				<Button Grid.Column="2" Classes="sort" VerticalAlignment="Bottom" Command="{Binding OpenFolderCommand}" IsVisible="{Binding HasFolder}" ToolTip.Tip="Open achievement file folder">
 					<StackPanel Orientation="Horizontal" Spacing="6">
 						<TextBlock Text="Open Folder" VerticalAlignment="Center" />
-						<Path
-							Data="M10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6H12L10,4Z"
-							Fill="#8f98a0"
-							Width="14"
-							Height="14"
-							Stretch="Uniform"
-							VerticalAlignment="Center" />
+						<Path Data="M10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6H12L10,4Z" Fill="#8f98a0" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
 					</StackPanel>
 				</Button>
 			</Grid>
@@ -93,25 +53,11 @@
 		<!-- Search and Sort Bar (same as HomeView) -->
 		<Border Grid.Row="1" Padding="16,10" Background="#1b2838">
 			<Grid ColumnDefinitions="*,Auto">
-				<TextBox
-					Grid.Column="0"
-					Classes="search"
-					Text="{Binding SearchText}"
-					PlaceholderText="Search achievements..."
-					Margin="0,0,10,0" />
+				<TextBox Grid.Column="0" Classes="search" Text="{Binding SearchText}" PlaceholderText="Search achievements..." Margin="0,0,10,0" />
 				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Stretch">
-					<Button
-						Classes="sort"
-						Content="{Binding AlphabeticalSortLabel}"
-						Command="{Binding SortAlphabeticalCommand}" />
-					<Button
-						Classes="sort"
-						Content="{Binding RaritySortLabel}"
-						Command="{Binding SortByRarityCommand}" />
-					<Button
-						Classes="sort"
-						Content="{Binding TimeSortLabel}"
-						Command="{Binding SortByTimeCommand}" />
+					<Button Classes="sort" Content="{Binding AlphabeticalSortLabel}" Command="{Binding SortAlphabeticalCommand}" />
+					<Button Classes="sort" Content="{Binding RaritySortLabel}" Command="{Binding SortByRarityCommand}" />
+					<Button Classes="sort" Content="{Binding TimeSortLabel}" Command="{Binding SortByTimeCommand}" />
 				</StackPanel>
 			</Grid>
 		</Border>
@@ -125,10 +71,7 @@
 						</MultiBinding>
 					</TextBlock.Text>
 				</TextBlock>
-				<TextBlock
-					Text="|"
-					Foreground="#24374c"
-					VerticalAlignment="Center" />
+				<TextBlock Text="|" Foreground="#24374c" VerticalAlignment="Center" />
 				<TextBlock Foreground="#6b7c8d" VerticalAlignment="Center" FontSize="12">
 					<TextBlock.Text>
 						<MultiBinding StringFormat="Locked ({0})">
@@ -143,25 +86,15 @@
 			<ListBox ItemsSource="{Binding DisplayAchievements}" Background="Transparent" Margin="8,8,0,8" Padding="0,0,8,0" SelectionMode="Single" SelectedItem="{x:Null}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 				<ListBox.Styles>
 					<Style Selector="ListBoxItem">
-						<Setter
-							Property="Padding"
-							Value="0" />
-						<Setter
-							Property="Margin"
-							Value="0" />
-						<Setter
-							Property="Background"
-							Value="Transparent" />
+						<Setter Property="Padding" Value="0" />
+						<Setter Property="Margin" Value="0" />
+						<Setter Property="Background" Value="Transparent" />
 					</Style>
 					<Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-						<Setter
-							Property="Background"
-							Value="Transparent" />
+						<Setter Property="Background" Value="Transparent" />
 					</Style>
 					<Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-						<Setter
-							Property="Background"
-							Value="Transparent" />
+						<Setter Property="Background" Value="Transparent" />
 					</Style>
 				</ListBox.Styles>
 				<ListBox.ItemTemplate>
@@ -171,55 +104,20 @@
 								<!-- Icon -->
 								<Border Grid.Column="0" Background="{Binding IconBackground, Mode=OneTime}" CornerRadius="4,0,0,4" ClipToBounds="True">
 									<Grid>
-										<Image
-											images:SizedImageLoader.Source="{Binding DisplayIconUri, Mode=OneTime}"
-											images:SizedImageLoader.Loader="{x:Static images:ImageLoaders.Icon}"
-											images:ImageSourceDisposer.DisposeSource="True"
-											Stretch="UniformToFill"
-											IsVisible="{Binding IsNotMasked, Mode=OneTime}" />
+										<Image images:SizedImageLoader.Source="{Binding DisplayIconUri, Mode=OneTime}" images:SizedImageLoader.Loader="{x:Static images:ImageLoaders.Icon}" images:ImageSourceDisposer.DisposeSource="True" Stretch="UniformToFill" IsVisible="{Binding IsNotMasked, Mode=OneTime}" />
 										<!-- Lock placeholder for masked hidden achievements -->
-										<Path
-											IsVisible="{Binding IsMasked, Mode=OneTime}"
-											Data="{StaticResource LockIconGeometry}"
-											Fill="#3d5068"
-											Width="22"
-											Height="22"
-											Stretch="Uniform"
-											HorizontalAlignment="Center"
-											VerticalAlignment="Center" />
+										<Path IsVisible="{Binding IsMasked, Mode=OneTime}" Data="{StaticResource LockIconGeometry}" Fill="#3d5068" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
 									</Grid>
 								</Border>
 								<!-- Name + Description -->
 								<StackPanel Grid.Column="1" Margin="16,10" Spacing="3" VerticalAlignment="Center">
-									<TextBlock
-										Text="{Binding DisplayName, Mode=OneTime}"
-										FontSize="14"
-										FontWeight="SemiBold"
-										Foreground="{Binding NameForeground, Mode=OneTime}"
-										TextTrimming="CharacterEllipsis"
-										MaxLines="1" />
-									<TextBlock
-										Text="{Binding DisplayDescription, Mode=OneTime}"
-										FontSize="12"
-										Foreground="{Binding DescriptionForeground, Mode=OneTime}"
-										TextTrimming="CharacterEllipsis"
-										MaxLines="1"
-										IsVisible="{Binding DisplayDescription, Mode=OneTime, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+									<TextBlock Text="{Binding DisplayName, Mode=OneTime}" FontSize="14" FontWeight="SemiBold" Foreground="{Binding NameForeground, Mode=OneTime}" TextTrimming="CharacterEllipsis" MaxLines="1" />
+									<TextBlock Text="{Binding DisplayDescription, Mode=OneTime}" FontSize="12" Foreground="{Binding DescriptionForeground, Mode=OneTime}" TextTrimming="CharacterEllipsis" MaxLines="1" IsVisible="{Binding DisplayDescription, Mode=OneTime, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 								</StackPanel>
 								<!-- Unlock time + Rarity (right column) -->
 								<StackPanel Grid.Column="2" Margin="12,10" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Right" IsVisible="{Binding !IsMasked, Mode=OneTime}">
-									<TextBlock
-										Text="{Binding UnlockTimeText, Mode=OneTime}"
-										FontSize="11"
-										Foreground="#6b7c8d"
-										HorizontalAlignment="Right"
-										IsVisible="{Binding UnlockTimeText, Mode=OneTime, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-									<TextBlock
-										Text="{Binding RarityLabel, Mode=OneTime}"
-										FontSize="11"
-										Foreground="{Binding RarityColor, Mode=OneTime}"
-										HorizontalAlignment="Right"
-										IsVisible="{Binding RarityLabel, Mode=OneTime, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+									<TextBlock Text="{Binding UnlockTimeText, Mode=OneTime}" FontSize="11" Foreground="#6b7c8d" HorizontalAlignment="Right" IsVisible="{Binding UnlockTimeText, Mode=OneTime, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+									<TextBlock Text="{Binding RarityLabel, Mode=OneTime}" FontSize="11" Foreground="{Binding RarityColor, Mode=OneTime}" HorizontalAlignment="Right" IsVisible="{Binding RarityLabel, Mode=OneTime, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 								</StackPanel>
 							</Grid>
 						</Border>

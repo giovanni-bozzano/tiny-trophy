@@ -14,65 +14,51 @@ public sealed class SteamEmulatorWatcher(
 {
 	protected override void InitializeKnownState()
 	{
-		IReadOnlyList<string> watchedDirectories = SteamEmulatorScanner.GetEnabledWatchedDirectories(settings.Settings);
-		IReadOnlyList<string> protonPrefixDirectories = SteamEmulatorScanner.GetEnabledProtonPrefixDirectories(settings.Settings);
+		IReadOnlyList<string> resolvedDirectories = SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings);
 
-		foreach (string watchedDirectory in watchedDirectories)
+		foreach (string resolved in resolvedDirectories)
 		{
-			foreach (string resolved in SteamEmulatorScanner.ExpandPathToAllCandidates(watchedDirectory, protonPrefixDirectories))
+			try
 			{
-				if (!Directory.Exists(resolved))
-					continue;
-
-				try
+				foreach (string appDir in Directory.EnumerateDirectories(resolved))
 				{
-					foreach (string appDir in Directory.EnumerateDirectories(resolved))
-					{
-						string appId = Path.GetFileName(appDir);
-						if (!AchievementFileParser.IsAppId(appId))
-							continue;
+					string appId = Path.GetFileName(appDir);
+					if (!AchievementFileParser.IsAppId(appId))
+						continue;
 
-						HashSet<string> unlocked = AchievementFileParser.ParseFromDirectory(appDir)
-							.Where(a => a.IsUnlocked)
-							.Select(a => a.Id)
-							.ToHashSet(StringComparer.OrdinalIgnoreCase);
+					HashSet<string> unlocked = AchievementFileParser.ParseFromDirectory(appDir)
+						.Where(a => a.IsUnlocked)
+						.Select(a => a.Id)
+						.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-						SetKnownUnlocks(appId, unlocked);
-					}
+					SetKnownUnlocks(appId, unlocked);
 				}
-				catch { }
 			}
+			catch { }
 		}
 	}
 
 	protected override void SetupFileWatchers()
 	{
-		IReadOnlyList<string> watchedDirectories = SteamEmulatorScanner.GetEnabledWatchedDirectories(settings.Settings);
-		IReadOnlyList<string> protonPrefixDirectories = SteamEmulatorScanner.GetEnabledProtonPrefixDirectories(settings.Settings);
+		IReadOnlyList<string> resolvedDirectories = SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings);
 
-		foreach (string watchedDirectory in watchedDirectories)
+		foreach (string resolved in resolvedDirectories)
 		{
-			foreach (string resolved in SteamEmulatorScanner.ExpandPathToAllCandidates(watchedDirectory, protonPrefixDirectories))
+			try
 			{
-				if (!Directory.Exists(resolved))
-					continue;
-
-				try
+				FileSystemWatcher watcher = new(resolved)
 				{
-					FileSystemWatcher watcher = new(resolved)
-					{
-						IncludeSubdirectories = true,
-						NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
-						EnableRaisingEvents = true
-					};
+					IncludeSubdirectories = true,
+					NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
+					EnableRaisingEvents = true
+				};
 
-					watcher.Changed += OnFileChanged;
-					watcher.Created += OnFileChanged;
-					watcher.Deleted += OnFileChanged;
-					AddWatcher(watcher);
-				}
-				catch { }
+				watcher.Changed += OnFileChanged;
+				watcher.Created += OnFileChanged;
+				watcher.Deleted += OnFileChanged;
+				AddWatcher(watcher);
 			}
+			catch { }
 		}
 	}
 
@@ -173,17 +159,13 @@ public sealed class SteamEmulatorWatcher(
 
 	private string? FindAppDirectory(string appId)
 	{
-		IReadOnlyList<string> watchedDirectories = SteamEmulatorScanner.GetEnabledWatchedDirectories(settings.Settings);
-		IReadOnlyList<string> protonPrefixDirectories = SteamEmulatorScanner.GetEnabledProtonPrefixDirectories(settings.Settings);
+		IReadOnlyList<string> resolvedDirectories = SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings);
 
-		foreach (string folder in watchedDirectories)
+		foreach (string resolved in resolvedDirectories)
 		{
-			foreach (string resolved in SteamEmulatorScanner.ExpandPathToAllCandidates(folder, protonPrefixDirectories))
-			{
-				string candidate = Path.Combine(resolved, appId);
-				if (Directory.Exists(candidate))
-					return candidate;
-			}
+			string candidate = Path.Combine(resolved, appId);
+			if (Directory.Exists(candidate))
+				return candidate;
 		}
 		return null;
 	}

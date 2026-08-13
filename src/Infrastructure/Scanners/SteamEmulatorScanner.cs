@@ -67,17 +67,20 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	}
 
 	/// <summary>
-	/// Returns the default Proton prefix directories, populated on first run on Linux. Each
-	/// entry is a directory whose immediate subdirectories are individual Proton prefixes (i.e. each
-	/// contains a "drive_c" folder), such as Heroic Games Launcher's default prefix location.
+	/// Returns the default Proton prefix directories, populated on first run on Linux. Each entry is the
+	/// full path to a directory that directly contains "drive_c", with "*" segments meaning "any
+	/// directory at this level" (see <see cref="ExpandProtonPrefixDirectoryGlob"/>).
 	/// </summary>
 	public static List<DirectoryConfig> GetDefaultProtonPrefixDirectories()
 	{
 		return
 		[
-			new() { Path = Path.Combine("%UserProfile%", ".steam", "debian-installation", "steamapps", "compatdata"), Label = "Steam", Enabled = true, IsDefault = true },
-			new() { Path = Path.Combine("%UserProfile%", ".local", "share", "Steam", "steamapps", "compatdata"), Label = "Steam (alternative)", Enabled = true, IsDefault = true },
-			new() { Path = Path.Combine("%UserProfile%", "Games", "Heroic", "Prefixes"), Label = "Heroic Games Launcher", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", ".steam", "steam", "steamapps", "compatdata", "*", "pfx"), Label = "Steam", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", ".local", "share", "Steam", "steamapps", "compatdata", "*", "pfx"), Label = "Steam (alternative)", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", ".var", "app", "com.valvesoftware.Steam", ".steam", "steam", "steamapps", "compatdata", "*", "pfx"), Label = "Steam (Flatpak)", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam", "steamapps", "compatdata", "*", "pfx"), Label = "Steam (Flatpak alternative)", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", "Games", "Heroic", "Prefixes", "*"), Label = "Heroic Games Launcher", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", ".var", "app", "com.usebottles.bottles", "data", "bottles", "bottles", "*"), Label = "Bottles (Flatpak)", Enabled = true, IsDefault = true },
 		];
 	}
 
@@ -86,24 +89,17 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 		CancellationToken ct = default)
 	{
 		List<Game> games = [];
-		IReadOnlyList<string> watchedDirectories = GetEnabledWatchedDirectories(settings.Settings);
-		IReadOnlyList<string> protonPrefixDirectories = GetEnabledProtonPrefixDirectories(settings.Settings);
+		IReadOnlyList<string> resolvedDirectories = GetEnabledResolvedDirectories(settings.Settings);
 
-		foreach (string watchedDirectory in watchedDirectories)
+		foreach (string resolved in resolvedDirectories)
 		{
 			ct.ThrowIfCancellationRequested();
 
-			foreach (string resolved in ExpandPathToAllCandidates(watchedDirectory, protonPrefixDirectories))
+			try
 			{
-				if (!Directory.Exists(resolved))
-					continue;
-
-				try
-				{
-					ScanFolder(resolved, games);
-				}
-				catch { }
+				ScanFolder(resolved, games);
 			}
+			catch { }
 		}
 
 		return Task.FromResult<IReadOnlyList<Game>>(games);
@@ -142,27 +138,40 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	{
 		return [.. appSettings.WatchedDirectories
 			.Where(d => d.Enabled && !string.IsNullOrWhiteSpace(d.Path))
-			.Select(d => ExpandPath(d.Path))];
+			.Select(d => d.Path)];
 	}
 
 	/// <summary>
-	/// Returns the resolved paths of the user's enabled Proton prefix directories.
+	/// Returns the resolved patterns of the user's enabled Proton prefix directories. Each pattern is
+	/// the full path to a directory that directly contains "drive_c", with "*" segments meaning "any
+	/// directory at this level" (see <see cref="ExpandProtonPrefixDirectoryGlob"/>).
 	/// </summary>
 	public static IReadOnlyList<string> GetEnabledProtonPrefixDirectories(AppSettings appSettings)
 	{
 		return [.. appSettings.ProtonPrefixDirectories
 			.Where(d => d.Enabled && !string.IsNullOrWhiteSpace(d.Path))
-			.Select(d => ExpandPath(d.Path))];
+			.Select(d => ExpandPath(d.Path))
+			.OfType<string>()];
 	}
 
 	/// <summary>
-	/// Expands placeholder tokens in a path to their actual value.
+	/// Expands placeholder tokens in a path to their actual value, or <see langword="null"/> if the path
+	/// references a token that has no value on the current OS (e.g. a Windows-only special folder while
+	/// running on Linux), meaning the path can't be resolved at all.
 	/// </summary>
-	public static string ExpandPath(string path)
+	public static string? ExpandPath(string path)
 	{
 		string resultingPath = path;
-		foreach ((string? token, string? value) in s_pathTokens)
+		foreach ((string token, string value) in s_pathTokens)
+		{
+			if (!resultingPath.Contains(token, StringComparison.OrdinalIgnoreCase))
+				continue;
+
+			if (string.IsNullOrEmpty(value))
+				return null;
+
 			resultingPath = resultingPath.Replace(token, value, StringComparison.OrdinalIgnoreCase);
+		}
 
 		return resultingPath;
 	}
@@ -195,17 +204,111 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	/// Windows filesystem, not the real Linux one, so APIs like <see cref="Environment.GetFolderPath"/>
 	/// don't apply here.
 	/// </remarks>
-	private static string? ExpandPathInProton(
+	private static string ExpandPathInProton(
 		string watchedDirectoryPath,
 		string protonPrefixRoot)
 	{
-		string? resultingPath = watchedDirectoryPath;
+		string resultingPath = watchedDirectoryPath;
 		foreach ((string token, string value) in s_protonPrefixPathTokens)
 			resultingPath = resultingPath.Replace(token, value, StringComparison.OrdinalIgnoreCase);
 
-		resultingPath = Path.Combine(protonPrefixRoot, resultingPath);
+		return Path.Combine(protonPrefixRoot, resultingPath);
+	}
 
-		return resultingPath;
+	/// <summary>
+	/// Expands a "*" glob segment in a Proton prefix directory pattern into every real, non-symlink
+	/// directory that matches, e.g. ".../compatdata/*/pfx" resolves "*" against every appid directory
+	/// under "compatdata" and returns each matching "pfx" directory found to actually exist.
+	/// </summary>
+	/// <remarks>
+	/// Symlinks are skipped because compatibility tools sometimes symlink one prefix onto another (e.g.
+	/// to share a prefix between two app IDs), which would otherwise report the same real directory as
+	/// two separate candidates.
+	/// </remarks>
+	private static IEnumerable<string> ExpandProtonPrefixDirectoryGlob(string pattern)
+	{
+		string[] segments = pattern.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+		IEnumerable<string> candidatePaths = [segments[0]];
+
+		if (pattern.StartsWith(Path.DirectorySeparatorChar) || pattern.StartsWith(Path.AltDirectorySeparatorChar))
+			candidatePaths = [Path.DirectorySeparatorChar.ToString()];
+
+		foreach (string segment in segments)
+		{
+			if (segment != "*")
+			{
+				candidatePaths = candidatePaths.Select(candidatePath => Path.Combine(candidatePath, segment));
+				continue;
+			}
+
+			candidatePaths = candidatePaths.SelectMany(candidatePath =>
+			{
+				if (!Directory.Exists(candidatePath))
+					return [];
+
+				IEnumerable<string> nonSymlinks = Directory.EnumerateDirectories(candidatePath)
+					.Where(childPath => !new DirectoryInfo(childPath).Attributes.HasFlag(FileAttributes.ReparsePoint));
+				return nonSymlinks;
+			});
+		}
+
+		return candidatePaths.Where(Directory.Exists);
+	}
+
+	/// <summary>
+	/// Caches the fully resolved list of existing directories to scan/watch, computed from the user's
+	/// enabled watched directories and Proton prefix directories. Re-doing this whole pipeline (including
+	/// re-globbing Proton prefixes on disk) on every scan/watch setup call is wasteful since the settings
+	/// don't change between calls. Cleared via <see cref="ClearExpandedPathCache"/> whenever settings are
+	/// saved.
+	/// </summary>
+	private static IReadOnlyList<string>? s_resolvedDirectoriesCache;
+
+	/// <summary>
+	/// Clears <see cref="s_resolvedDirectoriesCache"/>. Must be called whenever watched directories or
+	/// Proton prefix directories change, so subsequent calls to <see cref="GetEnabledResolvedDirectories"/>
+	/// re-expand against the new configuration instead of returning stale candidates.
+	/// </summary>
+	public static void ClearExpandedPathCache()
+	{
+		s_resolvedDirectoriesCache = null;
+	}
+
+	/// <summary>
+	/// Returns every directory that actually exists on disk across all of the user's enabled watched
+	/// directories, expanded to every plausible candidate location (including Proton prefix candidates
+	/// on Linux, see <see cref="ExpandPathToAllCandidates"/>).
+	/// </summary>
+	/// <param name="skipCache">
+	/// If <see langword="true"/>, bypasses <see cref="s_resolvedDirectoriesCache"/> entirely (neither
+	/// reading nor writing to it) and re-resolves from disk. Intended for the Settings debug panel, so it
+	/// always reflects the current filesystem state.
+	/// </param>
+	public static IReadOnlyList<string> GetEnabledResolvedDirectories(
+		AppSettings appSettings,
+		bool skipCache = false)
+	{
+		if (!skipCache && s_resolvedDirectoriesCache is not null)
+			return s_resolvedDirectoriesCache;
+
+		IReadOnlyList<string> watchedDirectories = GetEnabledWatchedDirectories(appSettings);
+		IReadOnlyList<string> protonPrefixDirectories = GetEnabledProtonPrefixDirectories(appSettings);
+
+		List<string> resolvedDirectories = [];
+		foreach (string watchedDirectory in watchedDirectories)
+		{
+			foreach (string candidate in ExpandPathToAllCandidates(watchedDirectory, protonPrefixDirectories))
+			{
+				if (Directory.Exists(candidate))
+					resolvedDirectories.Add(candidate);
+			}
+		}
+
+		if (!skipCache)
+			s_resolvedDirectoriesCache = resolvedDirectories;
+
+		return resolvedDirectories;
 	}
 
 	/// <summary>
@@ -215,34 +318,66 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	/// On Windows this is just <see cref="ExpandPath"/>. On Linux, Windows games run under Proton
 	/// or Wine each get their own prefix (a "drive_c" directory), so a Steam emulator's save path like
 	/// "%AppData%\Goldberg SteamEmu Saves" lives under every game's prefix separately, rather than under
-	/// one shared native directory. <paramref name="protonPrefixDirectories"/> lists the directories the user has
-	/// configured as containers of such prefixes, and this returns one candidate per prefix found directly under
-	/// each of those directories.
+	/// one shared native directory. <paramref name="protonPrefixDirectories"/> lists the full paths (with
+	/// "*" wildcard segments) to the directories directly containing "drive_c", and this returns one
+	/// candidate per matching prefix.
 	/// </remarks>
 	public static IReadOnlyList<string> ExpandPathToAllCandidates(
 		string watchedDirectoryPath,
 		IReadOnlyList<string> protonPrefixDirectories)
 	{
-		List<string> candidates = [ExpandPath(watchedDirectoryPath)];
+		List<string> candidates = [];
 
-		if (OperatingSystem.IsWindows())
-			return candidates;
+		string? nativeCandidate = ExpandPath(watchedDirectoryPath);
+		if (nativeCandidate is not null)
+			candidates.Add(nativeCandidate);
 
-		// If on Linux, scan prefix directories for every Proton prefix, and expand the path under each prefix's "drive_c" folder.
-		foreach (string protonPrefixDirectory in protonPrefixDirectories)
+		if (!OperatingSystem.IsWindows())
 		{
-			if (!Directory.Exists(protonPrefixDirectory))
-				continue;
-
-			// Probe all Proton prefixes in the Proton prefix directory
-			foreach (string protonPrefixRoot in Directory.EnumerateDirectories(protonPrefixDirectory))
+			// If on Linux, resolve every "*" wildcard in each configured Proton prefix pattern against
+			// the real filesystem, and expand the watched directory path under each matching prefix root.
+			foreach (string protonPrefixPattern in protonPrefixDirectories)
 			{
-				string? expanded = ExpandPathInProton(watchedDirectoryPath, protonPrefixRoot);
-				if (expanded is not null)
-					candidates.Add(expanded);
+				foreach (string protonPrefixRoot in ExpandProtonPrefixDirectoryGlob(protonPrefixPattern))
+					candidates.Add(ExpandPathInProton(watchedDirectoryPath, protonPrefixRoot));
 			}
 		}
 
 		return candidates;
 	}
+
+	/// <summary>
+	/// Returns, for every enabled watched directory, every candidate path it expands to (including
+	/// Proton prefix candidates on Linux) alongside whether that candidate actually exists on disk.
+	/// Intended for the debug diagnostics panel in Settings, to help users troubleshoot why a directory
+	/// isn't being picked up, so it always bypasses <see cref="s_resolvedDirectoriesCache"/>.
+	/// </summary>
+	public static IReadOnlyList<WatchedDirectoryDebugInfo> DebugExpandAllWatchedDirectories(AppSettings appSettings)
+	{
+		IReadOnlyList<string> protonPrefixDirectories = GetEnabledProtonPrefixDirectories(appSettings);
+
+		return [.. appSettings.WatchedDirectories
+			.Where(d => d.Enabled && !string.IsNullOrWhiteSpace(d.Path))
+			.Select(d => new WatchedDirectoryDebugInfo(
+				d.Label,
+				d.Path,
+				[.. ExpandPathToAllCandidates(d.Path, protonPrefixDirectories)
+					.Select(candidate => new WatchedDirectoryCandidate(candidate, Directory.Exists(candidate)))]))];
+	}
 }
+
+/// <summary>
+/// Debug diagnostics for a single watched directory entry: its raw configured path and every candidate
+/// location it was expanded to.
+/// </summary>
+public sealed record WatchedDirectoryDebugInfo(
+	string Label,
+	string RawPath,
+	IReadOnlyList<WatchedDirectoryCandidate> Candidates);
+
+/// <summary>
+/// A single expanded candidate path and whether it exists on disk.
+/// </summary>
+public sealed record WatchedDirectoryCandidate(
+	string Path,
+	bool Exists);

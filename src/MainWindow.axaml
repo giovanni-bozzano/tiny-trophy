@@ -16,36 +16,20 @@
 		<Border Grid.Row="0" Background="#101821" Padding="8,6" IsVisible="{Binding ShowNavBar}">
 			<Grid ColumnDefinitions="Auto,*,Auto" IsHitTestVisible="{Binding !IsBusy}">
 				<!-- Back Button -->
-				<Button
-					Grid.Column="0"
-					Classes="nav"
-					Content="&#x2190; Back"
-					Command="{Binding GoBackCommand}"
-					IsVisible="{Binding CanGoBack}" />
+				<Button Grid.Column="0" Classes="nav" Content="&#x2190; Back" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}" />
 				<!-- Spacer -->
 				<Border Grid.Column="1"/>
 				<!-- Toolbar Buttons -->
 				<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-					<Button
-						Classes="nav"
-						Content="&#x21BB; Refresh"
-						Command="{Binding RefreshMetadataCommand}" />
-					<Button
-						Classes="nav"
-						Content="Settings"
-						Command="{Binding OpenSettingsCommand}" />
+					<Button Classes="nav" Content="&#x21BB; Refresh" Command="{Binding RefreshMetadataCommand}" />
+					<Button Classes="nav" Content="Settings" Command="{Binding OpenSettingsCommand}" />
 				</StackPanel>
 			</Grid>
 		</Border>
 		<!-- Warnings -->
 		<StackPanel Grid.Row="1">
 			<Border Background="#5e1a1a" Padding="12,8" IsVisible="{Binding ApiKeyWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-				<TextBlock
-					Text="{Binding ApiKeyWarning}"
-					Foreground="#ff6b6b"
-					FontSize="12"
-					TextWrapping="Wrap"
-					HorizontalAlignment="Center" />
+				<TextBlock Text="{Binding ApiKeyWarning}" Foreground="#ff6b6b" FontSize="12" TextWrapping="Wrap" HorizontalAlignment="Center" />
 			</Border>
 		</StackPanel>
 		<!-- Content Area -->
