@@ -24,11 +24,17 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
-    - name: Publish Windows x64 application
-      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish -p:TargetName=tinytrophy_windows_amd64
+    - name: Publish Windows x64 binary
+      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish
 
-    - name: Publish Linux x64 application
-      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish -p:TargetName=tinytrophy_linux_amd64
+    - name: Rename Windows x64 binary
+      run: mv ./publish/TinyTrophy.exe ./publish/tinytrophy_windows_amd64.exe
+
+    - name: Publish Linux x64 binary
+      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish
+
+    - name: Rename Linux x64 binary
+      run: mv ./publish/TinyTrophy ./publish/tinytrophy_linux_amd64
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v7
