@@ -85,7 +85,7 @@ public static class UpdateService
 	}
 
 	/// <summary>
-	/// Downloads the release asset .exe to a temp file next to the current executable.
+	/// Downloads the release asset binary to a temp file next to the current executable.
 	/// Returns the path of the downloaded temp file.
 	/// </summary>
 	public static async Task<string> DownloadUpdateAsync(
@@ -93,9 +93,9 @@ public static class UpdateService
 		IProgress<double> progress,
 		CancellationToken ct = default)
 	{
-		string exePath = Environment.ProcessPath
+		string binaryPath = Environment.ProcessPath
 			?? throw new InvalidOperationException("Cannot determine current executable path.");
-		string tempPath = exePath + ".update";
+		string tempPath = binaryPath + ".update";
 
 		using HttpResponseMessage response = await s_http.GetAsync(asset.BrowserDownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
 		response.EnsureSuccessStatusCode();
@@ -125,24 +125,24 @@ public static class UpdateService
 	/// </summary>
 	public static void ApplyUpdateAndRestart(string downloadedExePath)
 	{
-		string currentExe = Environment.ProcessPath
-			?? throw new InvalidOperationException("Cannot determine current executable path.");
-		string oldExe = currentExe + ".old";
+		string currentBinary = Environment.ProcessPath
+			?? throw new InvalidOperationException("Cannot determine current binary path.");
+		string oldBinary = currentBinary + ".old";
 
 		// Clean up leftovers from a previous failed update
-		if (File.Exists(oldExe))
-			File.Delete(oldExe);
+		if (File.Exists(oldBinary))
+			File.Delete(oldBinary);
 
-		// Swap the current exe with the downloaded update
-		File.Move(currentExe, oldExe);
-		File.Move(downloadedExePath, currentExe);
+		// Swap the current binary with the downloaded update
+		File.Move(currentBinary, oldBinary);
+		File.Move(downloadedExePath, currentBinary);
 
 		// Leave a flag so the next launch can show a "just updated" notice
 		string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? string.Empty;
 		WriteUpdatedFlag(version);
 
 		// Relaunch with the new version
-		Process.Start(new ProcessStartInfo(currentExe) { UseShellExecute = true });
+		Process.Start(new ProcessStartInfo(currentBinary) { UseShellExecute = true });
 		Environment.Exit(0);
 	}
 
@@ -151,29 +151,32 @@ public static class UpdateService
 	/// </summary>
 	public static void CleanupPreviousUpdate()
 	{
-		string? currentExe = Environment.ProcessPath;
-		if (currentExe is null)
+		string? currentBinary = Environment.ProcessPath;
+		if (currentBinary is null)
 			return;
 
 		try
 		{
-			string oldExe = currentExe + ".old";
-			if (File.Exists(oldExe))
-				File.Delete(oldExe);
+			string oldBinary = currentBinary + ".old";
+			if (File.Exists(oldBinary))
+				File.Delete(oldBinary);
 
-			string updateExe = currentExe + ".update";
-			if (File.Exists(updateExe))
-				File.Delete(updateExe);
+			string updateBinary = currentBinary + ".update";
+			if (File.Exists(updateBinary))
+				File.Delete(updateBinary);
 		}
 		catch { }
 	}
 
 	/// <summary>
-	/// Finds the .exe asset from a release's asset list.
+	/// Finds the correct asset from a release's asset list.
 	/// </summary>
-	public static GitHubReleaseAsset? FindExeAsset(GitHubRelease release)
+	public static GitHubReleaseAsset? FindAsset(GitHubRelease release)
 	{
-		return release.Assets.Find(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+		if (OperatingSystem.IsWindows())
+			return release.Assets.Find(a => a.Name.EndsWith("windows_amd64.exe", StringComparison.OrdinalIgnoreCase));
+		else
+			return release.Assets.Find(a => a.Name.EndsWith("linux_amd64", StringComparison.OrdinalIgnoreCase));
 	}
 
 	private static Version? ParseVersion(string tag)

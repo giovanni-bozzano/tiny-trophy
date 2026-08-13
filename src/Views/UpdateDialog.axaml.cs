@@ -20,7 +20,7 @@ public partial class UpdateDialog
 	public UpdateDialog(GitHubRelease release)
 		: this()
 	{
-		_asset = UpdateService.FindExeAsset(release);
+		_asset = UpdateService.FindAsset(release);
 		VersionText.Text = $"Version {release.TagName} is now available.";
 		ReleaseLink.NavigateUri = new Uri(release.HtmlUrl);
 		ReleaseLink.Content = "View release on GitHub";
