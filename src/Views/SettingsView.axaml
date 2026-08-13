@@ -36,7 +36,7 @@
 						Classes="section-header"
 						Text="Achievement Sources" />
 					<TextBlock
-						Text="Enable or disable default folders, or add your own custom paths."
+						Text="Enable or disable default directories, or add your own custom paths."
 						Foreground="#8f98a0"
 						FontSize="12"
 						TextWrapping="Wrap" />
@@ -47,9 +47,9 @@
 						Content="Scan ShadPS4 trophies"
 						IsChecked="{Binding ShadPs4Enabled}" />
 					<!-- Folder list -->
-					<ItemsControl ItemsSource="{Binding WatchedFolders}">
+					<ItemsControl ItemsSource="{Binding WatchedDirectories}">
 						<ItemsControl.ItemTemplate>
-							<DataTemplate x:DataType="vm:FolderItemViewModel">
+							<DataTemplate x:DataType="vm:DirectoryItemViewModel">
 								<Border Padding="8,6" Margin="0,2" CornerRadius="4" Background="#1e2a35">
 									<Grid ColumnDefinitions="Auto,*,Auto">
 										<CheckBox
@@ -71,7 +71,7 @@
 											Grid.Column="2"
 											Content="✕"
 											FontSize="12"
-											Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveFolderCommand}"
+											Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveWatchedDirectoryCommand}"
 											CommandParameter="{Binding}"
 											IsVisible="{Binding IsRemovable, Mode=OneTime}"
 											VerticalAlignment="Center"
@@ -82,11 +82,11 @@
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
-					<!-- Add custom folder -->
+					<!-- Add custom watched directory -->
 					<Border Padding="8" CornerRadius="4" Background="#1a2530" Margin="0,8,0,0">
 						<StackPanel Spacing="8">
 							<TextBlock
-								Text="Add Custom Folder"
+								Text="Add custom watched directory"
 								FontSize="12"
 								Foreground="#8f98a0" />
 							<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
@@ -95,21 +95,100 @@
 									Grid.Column="0"
 									Grid.ColumnSpan="2"
 									Classes="search"
-									Text="{Binding NewFolderPath}"
-									PlaceholderText="Folder path (e.g. C:\MyEmu\saves)" />
+									Text="{Binding NewWatchedDirectoryPath}"
+									PlaceholderText="Directory path (e.g. C:\MyEmu\saves)" />
 								<TextBox
 									Grid.Row="1"
 									Grid.Column="0"
 									Margin="0,6,8,0"
 									Classes="search"
-									Text="{Binding NewFolderLabel}"
+									Text="{Binding NewWatchedDirectoryLabel}"
 									PlaceholderText="Label (optional)" />
 								<Button
 									Grid.Row="1"
 									Grid.Column="1"
 									Margin="0,6,0,0"
 									Content="Add"
-									Command="{Binding AddFolderCommand}" />
+									Command="{Binding AddWatchedDirectoryCommand}" />
+							</Grid>
+						</StackPanel>
+					</Border>
+				</StackPanel>
+			</Border>
+			<!-- Proton Prefix Directories Section (Linux only) -->
+			<Border Classes="panel" Padding="16" IsVisible="{Binding IsLinux}">
+				<StackPanel Spacing="12">
+					<TextBlock
+						Classes="section-header"
+						Text="Proton/Wine Prefix Directories" />
+					<TextBlock
+						Text="Directories whose immediate subfolders are individual Proton/Wine prefixes (each containing a 'drive_c' folder). Achievement source paths above are also searched inside every prefix found here."
+						Foreground="#8f98a0"
+						FontSize="12"
+						TextWrapping="Wrap" />
+					<ItemsControl ItemsSource="{Binding ProtonPrefixDirectories}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate x:DataType="vm:DirectoryItemViewModel">
+								<Border Padding="8,6" Margin="0,2" CornerRadius="4" Background="#1e2a35">
+									<Grid ColumnDefinitions="Auto,*,Auto">
+										<CheckBox
+											Grid.Column="0"
+											IsChecked="{Binding Enabled}"
+											VerticalAlignment="Center" />
+										<StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+											<TextBlock
+												Text="{Binding Label}"
+												FontWeight="SemiBold"
+												Foreground="#d9dfe4" />
+											<TextBlock
+												Text="{Binding Path}"
+												FontSize="11"
+												Foreground="#6b7c8d"
+												TextTrimming="CharacterEllipsis" />
+										</StackPanel>
+										<Button
+											Grid.Column="2"
+											Content="✕"
+											FontSize="12"
+											Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveProtonPrefixDirectoryCommand}"
+											CommandParameter="{Binding}"
+											IsVisible="{Binding IsRemovable, Mode=OneTime}"
+											VerticalAlignment="Center"
+											Padding="6,2"
+											Margin="4,0,0,0" />
+									</Grid>
+								</Border>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+					<!-- Add custom prefix directory -->
+					<Border Padding="8" CornerRadius="4" Background="#1a2530" Margin="0,8,0,0">
+						<StackPanel Spacing="8">
+							<TextBlock
+								Text="Add custom Proton prefix directory"
+								FontSize="12"
+								Foreground="#8f98a0" />
+							<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+								<TextBox
+									Grid.Row="0"
+									Grid.Column="0"
+									Grid.ColumnSpan="2"
+									Classes="search"
+									Text="{Binding NewProtonPrefixDirectoryPath}"
+									PlaceholderText="Directory path (e.g. ~/Games/Heroic/Prefixes)" />
+								<TextBox
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,6,8,0"
+									Classes="search"
+									Text="{Binding NewProtonPrefixDirectoryLabel}"
+									PlaceholderText="Label (optional)" />
+								<Button
+									Grid.Row="1"
+									Grid.Column="1"
+									Margin="0,6,0,0"
+									Content="Add"
+									Command="{Binding AddProtonPrefixDirectoryCommand}" />
 							</Grid>
 						</StackPanel>
 					</Border>

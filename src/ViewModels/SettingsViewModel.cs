@@ -33,13 +33,22 @@ public sealed partial class SettingsViewModel
 	public partial bool HideZeroPercent { get; set; }
 
 	[ObservableProperty]
-	public partial ObservableCollection<FolderItemViewModel> WatchedFolders { get; set; } = [];
+	public partial ObservableCollection<DirectoryItemViewModel> WatchedDirectories { get; set; } = [];
 
 	[ObservableProperty]
-	public partial string NewFolderPath { get; set; } = string.Empty;
+	public partial string NewWatchedDirectoryPath { get; set; } = string.Empty;
 
 	[ObservableProperty]
-	public partial string NewFolderLabel { get; set; } = string.Empty;
+	public partial string NewWatchedDirectoryLabel { get; set; } = string.Empty;
+
+	[ObservableProperty]
+	public partial ObservableCollection<DirectoryItemViewModel> ProtonPrefixDirectories { get; set; } = [];
+
+	[ObservableProperty]
+	public partial string NewProtonPrefixDirectoryPath { get; set; } = string.Empty;
+
+	[ObservableProperty]
+	public partial string NewProtonPrefixDirectoryLabel { get; set; } = string.Empty;
 
 	[ObservableProperty]
 	public partial bool NotificationsEnabled { get; set; } = true;
@@ -58,6 +67,8 @@ public sealed partial class SettingsViewModel
 
 	[ObservableProperty]
 	public partial string StatusMessage { get; set; } = string.Empty;
+
+	public bool IsLinux { get; } = OperatingSystem.IsLinux();
 
 	public string[] AvailableLanguages { get; } = ["english"];
 
@@ -90,21 +101,22 @@ public sealed partial class SettingsViewModel
 		SteamOfficialEnabled = s.SteamOfficialEnabled;
 		ShadPs4Enabled = s.ShadPs4Enabled;
 
-		WatchedFolders = new ObservableCollection<FolderItemViewModel>(s.WatchedFolders.Select(f => new FolderItemViewModel(f)));
+		WatchedDirectories = new ObservableCollection<DirectoryItemViewModel>(s.WatchedDirectories.Select(d => new DirectoryItemViewModel(d)));
+		ProtonPrefixDirectories = new ObservableCollection<DirectoryItemViewModel>(s.ProtonPrefixDirectories.Select(d => new DirectoryItemViewModel(d)));
 	}
 
 	[RelayCommand]
-	private void AddFolder()
+	private void AddWatchedDirectory()
 	{
-		string path = NewFolderPath.Trim();
+		string path = NewWatchedDirectoryPath.Trim();
 		if (string.IsNullOrWhiteSpace(path))
 			return;
 
-		string label = string.IsNullOrWhiteSpace(NewFolderLabel)
-			? Path.GetFileName(path)
-			: NewFolderLabel.Trim();
+		string label = string.IsNullOrWhiteSpace(NewWatchedDirectoryLabel)
+			? Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+			: NewWatchedDirectoryLabel.Trim();
 
-		WatchedFolders.Add(new FolderItemViewModel(new WatchedFolderConfig
+		WatchedDirectories.Add(new DirectoryItemViewModel(new DirectoryConfig
 		{
 			Path = path,
 			Label = label,
@@ -112,17 +124,49 @@ public sealed partial class SettingsViewModel
 			IsDefault = false
 		}));
 
-		NewFolderPath = string.Empty;
-		NewFolderLabel = string.Empty;
+		NewWatchedDirectoryPath = string.Empty;
+		NewWatchedDirectoryLabel = string.Empty;
 	}
 
 	[RelayCommand]
-	private void RemoveFolder(FolderItemViewModel? folder)
+	private void RemoveWatchedDirectory(DirectoryItemViewModel? directory)
 	{
-		if (folder is null || folder.IsDefault)
+		if (directory is null || directory.IsDefault)
 			return;
 
-		WatchedFolders.Remove(folder);
+		WatchedDirectories.Remove(directory);
+	}
+
+	[RelayCommand]
+	private void AddProtonPrefixDirectory()
+	{
+		string path = NewProtonPrefixDirectoryPath.Trim();
+		if (string.IsNullOrWhiteSpace(path))
+			return;
+
+		string label = string.IsNullOrWhiteSpace(NewProtonPrefixDirectoryLabel)
+			? Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+			: NewProtonPrefixDirectoryLabel.Trim();
+
+		ProtonPrefixDirectories.Add(new DirectoryItemViewModel(new DirectoryConfig
+		{
+			Path = path,
+			Label = label,
+			Enabled = true,
+			IsDefault = false
+		}));
+
+		NewProtonPrefixDirectoryPath = string.Empty;
+		NewProtonPrefixDirectoryLabel = string.Empty;
+	}
+
+	[RelayCommand]
+	private void RemoveProtonPrefixDirectory(DirectoryItemViewModel? directory)
+	{
+		if (directory is null || directory.IsDefault)
+			return;
+
+		ProtonPrefixDirectories.Remove(directory);
 	}
 
 	[RelayCommand]
@@ -142,7 +186,8 @@ public sealed partial class SettingsViewModel
 		s.SteamOfficialEnabled = SteamOfficialEnabled;
 		s.ShadPs4Enabled = ShadPs4Enabled;
 
-		s.WatchedFolders = [.. WatchedFolders.Select(f => f.ToConfig())];
+		s.WatchedDirectories = [.. WatchedDirectories.Select(d => d.ToConfig())];
+		s.ProtonPrefixDirectories = [.. ProtonPrefixDirectories.Select(d => d.ToConfig())];
 
 		await _settingsService.SaveAsync();
 
@@ -160,7 +205,11 @@ public sealed partial class SettingsViewModel
 	[RelayCommand]
 	private void ResetDefaults()
 	{
-		AppSettings defaults = new() { WatchedFolders = SteamEmulatorScanner.GetDefaultFolders() };
+		AppSettings defaults = new()
+		{
+			WatchedDirectories = SteamEmulatorScanner.GetDefaultWatchedDirectories(),
+			ProtonPrefixDirectories = SteamEmulatorScanner.GetDefaultProtonPrefixDirectories()
+		};
 
 		SteamApiKey = string.Empty;
 		SteamId = string.Empty;
@@ -174,7 +223,8 @@ public sealed partial class SettingsViewModel
 		SteamOfficialEnabled = defaults.SteamOfficialEnabled;
 		ShadPs4Enabled = defaults.ShadPs4Enabled;
 
-		WatchedFolders = new ObservableCollection<FolderItemViewModel>(defaults.WatchedFolders.Select(f => new FolderItemViewModel(f)));
+		WatchedDirectories = new ObservableCollection<DirectoryItemViewModel>(defaults.WatchedDirectories.Select(d => new DirectoryItemViewModel(d)));
+		ProtonPrefixDirectories = new ObservableCollection<DirectoryItemViewModel>(defaults.ProtonPrefixDirectories.Select(d => new DirectoryItemViewModel(d)));
 
 		StatusMessage = "Settings reset to defaults.";
 	}
@@ -189,7 +239,7 @@ public sealed partial class SettingsViewModel
 	}
 }
 
-public sealed partial class FolderItemViewModel(WatchedFolderConfig config)
+public sealed partial class DirectoryItemViewModel(DirectoryConfig config)
 	: ObservableObject
 {
 	[ObservableProperty]
@@ -206,7 +256,7 @@ public sealed partial class FolderItemViewModel(WatchedFolderConfig config)
 	// Companion property so the view can bind directly instead of using a negated binding.
 	public bool IsRemovable => !IsDefault;
 
-	public WatchedFolderConfig ToConfig() => new()
+	public DirectoryConfig ToConfig() => new()
 	{
 		Path = Path,
 		Label = Label,

@@ -3,7 +3,8 @@ namespace TinyTrophy.Models;
 public sealed class AppSettings
 {
 	public AchievementsSettings Achievements { get; set; } = new();
-	public List<WatchedFolderConfig> WatchedFolders { get; set; } = [];
+	public List<DirectoryConfig> WatchedDirectories { get; set; } = [];
+	public List<DirectoryConfig> ProtonPrefixDirectories { get; set; } = [];
 	public NotificationSettings Notifications { get; set; } = new();
 	public SortSettings HomeSort { get; set; } = new();
 	public SortSettings GameDetailSort { get; set; } = new();
@@ -28,7 +29,7 @@ public sealed class AchievementsSettings
 /// Default folders are auto-populated on first run and can be disabled but not removed.
 /// Custom folders can be added and removed by the user.
 /// </summary>
-public sealed class WatchedFolderConfig
+public sealed class DirectoryConfig
 {
 	public string Path { get; set; } = string.Empty;
 	public string Label { get; set; } = string.Empty;

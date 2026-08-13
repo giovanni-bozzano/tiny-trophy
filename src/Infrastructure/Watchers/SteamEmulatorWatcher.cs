@@ -14,61 +14,65 @@ public sealed class SteamEmulatorWatcher(
 {
 	protected override void InitializeKnownState()
 	{
-		foreach (WatchedFolderConfig folder in settings.Settings.WatchedFolders)
+		IReadOnlyList<string> watchedDirectories = SteamEmulatorScanner.GetEnabledWatchedDirectories(settings.Settings);
+		IReadOnlyList<string> protonPrefixDirectories = SteamEmulatorScanner.GetEnabledProtonPrefixDirectories(settings.Settings);
+
+		foreach (string watchedDirectory in watchedDirectories)
 		{
-			if (!folder.Enabled || string.IsNullOrWhiteSpace(folder.Path))
-				continue;
-
-			string resolved = SteamEmulatorScanner.ExpandPath(folder.Path);
-			if (!Directory.Exists(resolved))
-				continue;
-
-			try
+			foreach (string resolved in SteamEmulatorScanner.ExpandPathToAllCandidates(watchedDirectory, protonPrefixDirectories))
 			{
-				foreach (string appDir in Directory.EnumerateDirectories(resolved))
+				if (!Directory.Exists(resolved))
+					continue;
+
+				try
 				{
-					string appId = Path.GetFileName(appDir);
-					if (!AchievementFileParser.IsAppId(appId))
-						continue;
+					foreach (string appDir in Directory.EnumerateDirectories(resolved))
+					{
+						string appId = Path.GetFileName(appDir);
+						if (!AchievementFileParser.IsAppId(appId))
+							continue;
 
-					HashSet<string> unlocked = AchievementFileParser.ParseFromDirectory(appDir)
-						.Where(a => a.IsUnlocked)
-						.Select(a => a.Id)
-						.ToHashSet(StringComparer.OrdinalIgnoreCase);
+						HashSet<string> unlocked = AchievementFileParser.ParseFromDirectory(appDir)
+							.Where(a => a.IsUnlocked)
+							.Select(a => a.Id)
+							.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-					SetKnownUnlocks(appId, unlocked);
+						SetKnownUnlocks(appId, unlocked);
+					}
 				}
+				catch { }
 			}
-			catch { }
 		}
 	}
 
 	protected override void SetupFileWatchers()
 	{
-		foreach (WatchedFolderConfig folder in settings.Settings.WatchedFolders)
+		IReadOnlyList<string> watchedDirectories = SteamEmulatorScanner.GetEnabledWatchedDirectories(settings.Settings);
+		IReadOnlyList<string> protonPrefixDirectories = SteamEmulatorScanner.GetEnabledProtonPrefixDirectories(settings.Settings);
+
+		foreach (string watchedDirectory in watchedDirectories)
 		{
-			if (!folder.Enabled || string.IsNullOrWhiteSpace(folder.Path))
-				continue;
-
-			string resolved = SteamEmulatorScanner.ExpandPath(folder.Path);
-			if (!Directory.Exists(resolved))
-				continue;
-
-			try
+			foreach (string resolved in SteamEmulatorScanner.ExpandPathToAllCandidates(watchedDirectory, protonPrefixDirectories))
 			{
-				FileSystemWatcher watcher = new(resolved)
-				{
-					IncludeSubdirectories = true,
-					NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
-					EnableRaisingEvents = true
-				};
+				if (!Directory.Exists(resolved))
+					continue;
 
-				watcher.Changed += OnFileChanged;
-				watcher.Created += OnFileChanged;
-				watcher.Deleted += OnFileChanged;
-				AddWatcher(watcher);
+				try
+				{
+					FileSystemWatcher watcher = new(resolved)
+					{
+						IncludeSubdirectories = true,
+						NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
+						EnableRaisingEvents = true
+					};
+
+					watcher.Changed += OnFileChanged;
+					watcher.Created += OnFileChanged;
+					watcher.Deleted += OnFileChanged;
+					AddWatcher(watcher);
+				}
+				catch { }
 			}
-			catch { }
 		}
 	}
 
@@ -169,15 +173,17 @@ public sealed class SteamEmulatorWatcher(
 
 	private string? FindAppDirectory(string appId)
 	{
-		foreach (WatchedFolderConfig folder in settings.Settings.WatchedFolders)
-		{
-			if (!folder.Enabled || string.IsNullOrWhiteSpace(folder.Path))
-				continue;
+		IReadOnlyList<string> watchedDirectories = SteamEmulatorScanner.GetEnabledWatchedDirectories(settings.Settings);
+		IReadOnlyList<string> protonPrefixDirectories = SteamEmulatorScanner.GetEnabledProtonPrefixDirectories(settings.Settings);
 
-			string resolved = SteamEmulatorScanner.ExpandPath(folder.Path);
-			string candidate = Path.Combine(resolved, appId);
-			if (Directory.Exists(candidate))
-				return candidate;
+		foreach (string folder in watchedDirectories)
+		{
+			foreach (string resolved in SteamEmulatorScanner.ExpandPathToAllCandidates(folder, protonPrefixDirectories))
+			{
+				string candidate = Path.Combine(resolved, appId);
+				if (Directory.Exists(candidate))
+					return candidate;
+			}
 		}
 		return null;
 	}
