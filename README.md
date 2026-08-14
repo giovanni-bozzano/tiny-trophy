@@ -1,6 +1,6 @@
 # Tiny Trophy
 
-A lightweight achievement tracker that monitors your games across multiple platforms — all in a single, portable executable.
+A lightweight achievement tracker that monitors your games across multiple platforms — all in a single, portable executable. Runs natively on both **Windows** and **Linux**, including full support for Steam emulator achievements running under Proton/Wine.
 
 <table>
 	<td align="left">
@@ -13,6 +13,7 @@ A lightweight achievement tracker that monitors your games across multiple platf
 
 ## Features
 
+- **Linux support** — Runs natively on Linux and transparently resolves Steam emulator achievement folders inside Proton/Wine prefixes, with customizable locations
 - **Multi-platform support** — Track achievements from Steam, Steam emulators, and PS4 games via ShadPS4
 - **Truly lightweight** — Uses ~100 MB of RAM (~10 MB while in background) with a native UI that won't slow down your system while gaming
 - **Single portable executable** — No installer, no runtime to pre-install, no dependencies to manage
@@ -70,6 +71,22 @@ The following emulator folders are detected automatically on first launch:
 ### Custom Folders
 
 You can also add your own custom folders from the settings page. Any folder that contains subfolders named by Steam AppID with achievement files will be picked up automatically. Each folder can be individually enabled or disabled.
+
+### Linux Support
+
+Tiny Trophy runs natively on Linux. Since Steam emulator save paths are authored as Windows paths (`%AppData%`, `%LocalAppData%`, etc.), on Linux they are resolved separately inside every Proton/Wine prefix found under your configured **Proton/Wine Prefix Directories** (visible in Settings only on Linux). The following default prefix locations are detected automatically:
+
+| Launcher | Default Prefix Directory |
+|----------|--------------------------|
+| Steam | `~/.steam/steam/steamapps/compatdata/*/pfx` |
+| Steam (alternative) | `~/.local/share/Steam/steamapps/compatdata/*/pfx` |
+| Steam (Flatpak) | `~/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/compatdata/*/pfx` |
+| Steam (Flatpak alternative) | `~/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/compatdata/*/pfx` |
+| Heroic Games Launcher | `~/Games/Heroic/Prefixes/*` |
+| Lutris | `~/Games/*/*` |
+| Bottles (Flatpak) | `~/.var/app/com.usebottles.bottles/data/bottles/bottles/*` |
+
+Each `*` is resolved against every real (non-symlink) directory found on disk at that level. You can add, remove, enable, or disable prefix directories from Settings, and use the built-in directory debug panel to see every candidate path each watched folder expands to and whether it exists on disk.
 
 ## Building from Source
 

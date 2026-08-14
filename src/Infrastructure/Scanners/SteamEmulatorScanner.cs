@@ -80,6 +80,7 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 			new() { Path = Path.Combine("%UserProfile%", ".var", "app", "com.valvesoftware.Steam", ".steam", "steam", "steamapps", "compatdata", "*", "pfx"), Label = "Steam (Flatpak)", Enabled = true, IsDefault = true },
 			new() { Path = Path.Combine("%UserProfile%", ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam", "steamapps", "compatdata", "*", "pfx"), Label = "Steam (Flatpak alternative)", Enabled = true, IsDefault = true },
 			new() { Path = Path.Combine("%UserProfile%", "Games", "Heroic", "Prefixes", "*"), Label = "Heroic Games Launcher", Enabled = true, IsDefault = true },
+			new() { Path = Path.Combine("%UserProfile%", "Games", "*", "*"), Label = "Lutris", Enabled = true, IsDefault = true },
 			new() { Path = Path.Combine("%UserProfile%", ".var", "app", "com.usebottles.bottles", "data", "bottles", "bottles", "*"), Label = "Bottles (Flatpak)", Enabled = true, IsDefault = true },
 		];
 	}
