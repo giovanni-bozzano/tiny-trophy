@@ -13,7 +13,7 @@ namespace TinyTrophy.Infrastructure;
 public static class AchievementFileParser
 {
 	// Recognized achievement file names
-	private static readonly string[] AchievementFileNames =
+	internal static readonly string[] AchievementFileNames =
 		["achievements.json", "achievements.ini", "user_stats.ini", "stats.bin"];
 
 	// Subdirectories to scan as fallback

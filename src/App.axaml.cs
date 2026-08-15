@@ -113,7 +113,7 @@ public partial class App
 	/// <summary>
 	/// Connects the already built services to the UI and starts watching for achievements.
 	/// </summary>
-	private static void StartServices(AppServices services)
+	private void StartServices(AppServices services)
 	{
 		SettingsService settingsService = services.Settings;
 		MainViewModel mainViewModel = services.MainViewModel;
@@ -151,7 +151,20 @@ public partial class App
 
 		gameWatcher.Start();
 
-		_ = mainViewModel.HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+		_ = LoadGamesAndTrimIfNeededAsync(mainViewModel, settingsService);
+	}
+
+	private async Task LoadGamesAndTrimIfNeededAsync(
+		MainViewModel mainViewModel,
+		SettingsService settingsService)
+	{
+		await mainViewModel.HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+
+		// Games/images were just loaded into memory to keep data ready; if the window was never
+		// actually shown (started minimized), trim that memory back off now that the initial
+		// scan has finished
+		if (settingsService.Settings.StartMinimized && _mainWindow?.IsVisible == false)
+			Dispatcher.UIThread.Post(MemoryTrimmer.CollectAndTrim, DispatcherPriority.Background);
 	}
 
 	private void SetupTrayIcon()

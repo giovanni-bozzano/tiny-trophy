@@ -53,6 +53,9 @@ public sealed class SteamEmulatorWatcher(
 					EnableRaisingEvents = true
 				};
 
+				foreach (string filter in AchievementFileParser.AchievementFileNames)
+					watcher.Filters.Add(filter);
+
 				watcher.Changed += OnFileChanged;
 				watcher.Created += OnFileChanged;
 				watcher.Deleted += OnFileChanged;
