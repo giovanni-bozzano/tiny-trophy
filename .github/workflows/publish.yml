@@ -2,42 +2,50 @@ name: Publish
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
 
 jobs:
   publish:
     runs-on: windows-latest
 
     env:
-      PROJECT_PATH: 'src/TinyTrophy.csproj' 
+      PROJECT_PATH: 'src/TinyTrophy.csproj'
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: 10.0.x
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
 
-    - name: Publish Windows x64 binary
-      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish
+      - name: Publish Windows x64 binary
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish
 
-    - name: Rename Windows x64 binary
-      run: mv ./publish/TinyTrophy.exe ./publish/tinytrophy_windows_amd64.exe
+      - name: Rename Windows x64 binary
+        run: mv ./publish/TinyTrophy.exe ./publish/tinytrophy_windows_amd64.exe
 
-    - name: Publish Linux x64 binary
-      run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish
+      - name: Publish Linux x64 binary
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish
 
-    - name: Rename Linux x64 binary
-      run: mv ./publish/TinyTrophy ./publish/tinytrophy_linux_amd64
+      - name: Rename Linux x64 binary
+        run: mv ./publish/TinyTrophy ./publish/tinytrophy_linux_amd64
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v7
-      with:
-        name: TinyTrophy
-        path: ./publish/*
+      - name: Generate build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: './publish/*'
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: TinyTrophy
+          path: ./publish/*
