@@ -48,7 +48,8 @@ public partial class App
 
 			SettingsService settingsService = services.Settings;
 			MainViewModel mainViewModel = services.MainViewModel;
-			_mainWindow = new MainWindow(mainViewModel);
+			_mainWindow = new MainWindow(mainViewModel, settingsService);
+			_mainWindow.ExitRequested += (_, _) => ExitApp();
 
 			// Set up system tray icon
 			SetupTrayIcon();

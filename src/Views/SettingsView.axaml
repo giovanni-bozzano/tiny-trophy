@@ -106,6 +106,7 @@
 						<CheckBox Grid.Column="0" Content="Check for updates on startup" IsChecked="{Binding CheckForUpdates}" />
 						<Button Grid.Column="1" Content="Check Now" HorizontalAlignment="Left" Command="{Binding CheckForUpdateCommand}" />
 					</Grid>
+					<CheckBox Content="Close to tray instead of exiting" IsChecked="{Binding CloseToTray}" />
 					<StackPanel Spacing="4">
 						<TextBlock Text="Steam Web API Key" Foreground="#8f98a0" FontSize="12" />
 						<TextBox Classes="search" Text="{Binding SteamApiKey}" PlaceholderText="Enter your Steam API key..." PasswordChar="*" />

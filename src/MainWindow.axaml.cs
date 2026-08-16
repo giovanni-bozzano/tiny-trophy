@@ -9,27 +9,45 @@ namespace TinyTrophy;
 public partial class MainWindow
 	: Window
 {
+	private ISettingsService? _settingsService;
+
 	// When true, the window actually closes instead of hiding to tray
 	public bool AllowClose { get; set; }
+
+	// Raised when the window should close and "Close to tray" is disabled, so the app can perform a
+	// full shutdown (tray icon disposal, service cleanup) instead of just closing this window.
+	public event EventHandler? ExitRequested;
 
 	public MainWindow()
 	{
 		InitializeComponent();
 	}
 
-	public MainWindow(MainViewModel viewModel)
+	public MainWindow(
+		MainViewModel viewModel,
+		ISettingsService settingsService)
 		: this()
 	{
 		DataContext = viewModel;
+		_settingsService = settingsService;
 	}
 
 	protected override void OnClosing(WindowClosingEventArgs e)
 	{
 		if (!AllowClose)
 		{
-			// Hide to tray instead of closing
+			if (_settingsService?.Settings.CloseToTray ?? true)
+			{
+				// Hide to tray instead of closing
+				e.Cancel = true;
+				HideAndReleaseMemory();
+				return;
+			}
+
+			// "Close to tray" is disabled: closing the window should fully exit the app instead of
+			// leaving it running invisibly (ShutdownMode is OnExplicitShutdown)
 			e.Cancel = true;
-			HideAndReleaseMemory();
+			ExitRequested?.Invoke(this, EventArgs.Empty);
 			return;
 		}
 

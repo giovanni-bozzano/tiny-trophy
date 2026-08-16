@@ -14,6 +14,7 @@ public sealed class AppSettings
 	public bool SteamOfficialEnabled { get; set; } = true;
 	public bool ShadPs4Enabled { get; set; } = true;
 	public bool StartMinimized { get; set; }
+	public bool CloseToTray { get; set; } = true;
 	public bool CheckForUpdates { get; set; } = true;
 }
 

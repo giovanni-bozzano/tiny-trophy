@@ -60,6 +60,9 @@ public sealed partial class SettingsViewModel
 	public partial bool CheckForUpdates { get; set; } = true;
 
 	[ObservableProperty]
+	public partial bool CloseToTray { get; set; } = true;
+
+	[ObservableProperty]
 	public partial bool SteamOfficialEnabled { get; set; } = true;
 
 	[ObservableProperty]
@@ -104,6 +107,7 @@ public sealed partial class SettingsViewModel
 		NotificationsEnabled = s.Notifications.Enabled;
 		NotificationSound = s.Notifications.PlaySound;
 		CheckForUpdates = s.CheckForUpdates;
+		CloseToTray = s.CloseToTray;
 		SteamOfficialEnabled = s.SteamOfficialEnabled;
 		ShadPs4Enabled = s.ShadPs4Enabled;
 
@@ -189,6 +193,7 @@ public sealed partial class SettingsViewModel
 		s.Notifications.Enabled = NotificationsEnabled;
 		s.Notifications.PlaySound = NotificationSound;
 		s.CheckForUpdates = CheckForUpdates;
+		s.CloseToTray = CloseToTray;
 		s.SteamOfficialEnabled = SteamOfficialEnabled;
 		s.ShadPs4Enabled = ShadPs4Enabled;
 
@@ -226,6 +231,7 @@ public sealed partial class SettingsViewModel
 		NotificationsEnabled = defaults.Notifications.Enabled;
 		NotificationSound = defaults.Notifications.PlaySound;
 		CheckForUpdates = defaults.CheckForUpdates;
+		CloseToTray = defaults.CloseToTray;
 		SteamOfficialEnabled = defaults.SteamOfficialEnabled;
 		ShadPs4Enabled = defaults.ShadPs4Enabled;
 
