@@ -10,7 +10,7 @@
 			<StackPanel Spacing="6">
 				<TextBlock Text="Steam Web API Key" Foreground="#8f98a0" FontSize="12" FontWeight="Bold" />
 				<TextBox Classes="search" Text="{Binding ApiKey}" PlaceholderText="Enter your Steam API key..." PasswordChar="*" />
-				<TextBlock Text="Lets TinyTrophy fetch achievement metadata from Steam." Foreground="#6b7c8d" FontSize="11" TextWrapping="Wrap" />
+				<TextBlock Text="Lets Tiny Trophy fetch achievement metadata from Steam." Foreground="#6b7c8d" FontSize="11" TextWrapping="Wrap" />
 				<HyperlinkButton NavigateUri="https://steamcommunity.com/dev/apikey" FontSize="12" Foreground="#66c0f4" Padding="0" Content="Get your free key at steamcommunity.com/dev/apikey" />
 			</StackPanel>
 			<StackPanel Spacing="6">
