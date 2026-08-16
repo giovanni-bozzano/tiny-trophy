@@ -169,7 +169,7 @@ public partial class App
 
 	private void SetupTrayIcon()
 	{
-		NativeMenuItem showItem = new("Open TinyTrophy");
+		NativeMenuItem showItem = new("Open Tiny Trophy");
 		showItem.Click += (_, _) => ShowMainWindow();
 
 		NativeMenuItem startupItem = new();
@@ -209,7 +209,7 @@ public partial class App
 		_trayIcon = new TrayIcon
 		{
 			Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TinyTrophy/Assets/Icon.ico"))),
-			ToolTipText = "TinyTrophy",
+			ToolTipText = "Tiny Trophy",
 			Menu = menu,
 			IsVisible = true
 		};

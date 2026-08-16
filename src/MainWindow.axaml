@@ -7,7 +7,7 @@
 		mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="680"
 		x:Class="TinyTrophy.MainWindow"
 		x:DataType="vm:MainViewModel"
-		Title="TinyTrophy"
+		Title="Tiny Trophy"
 		Width="1024" Height="680"
 		MinWidth="800" MinHeight="500"
 		Background="#1b2838">

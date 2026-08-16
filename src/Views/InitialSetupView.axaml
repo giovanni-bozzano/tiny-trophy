@@ -6,7 +6,7 @@
 	x:DataType="vm:InitialSetupViewModel">
 	<Border Background="#1b2838" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
 		<StackPanel MaxWidth="480" Spacing="16" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="32">
-			<TextBlock Text="Welcome to TinyTrophy" FontSize="24" FontWeight="Bold" Foreground="#d9dfe4" HorizontalAlignment="Center" Margin="0,0,0,12" />
+			<TextBlock Text="Welcome to Tiny Trophy" FontSize="24" FontWeight="Bold" Foreground="#d9dfe4" HorizontalAlignment="Center" Margin="0,0,0,12" />
 			<StackPanel Spacing="6">
 				<TextBlock Text="Steam Web API Key" Foreground="#8f98a0" FontSize="12" FontWeight="Bold" />
 				<TextBox Classes="search" Text="{Binding ApiKey}" PlaceholderText="Enter your Steam API key..." PasswordChar="*" />
