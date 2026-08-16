@@ -88,6 +88,17 @@ Tiny Trophy runs natively on Linux. Since Steam emulator save paths are authored
 
 Each `*` is resolved against every real (non-symlink) directory found on disk at that level. You can add, remove, enable, or disable prefix directories from Settings, and use the built-in directory debug panel to see every candidate path each watched folder expands to and whether it exists on disk.
 
+## Why a Steam Web API Key?
+
+Tiny Trophy asks for your personal [Steam Web API key](https://steamcommunity.com/dev/apikey) to fetch achievement names, descriptions, icons, and global unlock percentages directly from Valve's official `ISteamUserStats` API.
+
+Using your own free API key means:
+
+- **Always up to date** — Achievement data comes straight from Steam for every game, including ones released yesterday.
+- **Reliable** — Your requests go directly to Valve's servers under your own key, so you're never affected by another user's activity or rate limit.
+- **Private and yours** — Your key is stored locally and used only to talk to Valve's servers on your behalf; Tiny Trophy has no server of its own and never sees or transmits your key anywhere else.
+- **Free and quick to get** — Generating a key takes less than a minute at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) and doesn't cost anything.
+
 ## Building from Source
 
 Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download)
@@ -95,10 +106,12 @@ Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download)
 ```bash
 git clone https://github.com/giovanni-bozzano/tiny-trophy.git
 cd tiny-trophy
-dotnet publish -c Release
+dotnet publish src/TinyTrophy.csproj -c Release -r win-x64
 ```
 
-The output is a single portable executable in `src/bin/Release/net10.0-windows/win-x64/publish/`.
+Replace `win-x64` with `linux-x64` to build for Linux instead.
+
+The output is a single portable executable in `src/bin/Release/net10.0/<rid>/publish/`.
 
 ## Acknowledgements
 
