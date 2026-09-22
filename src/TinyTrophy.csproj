@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net10.0</TargetFramework>
@@ -52,10 +52,6 @@
 	<ItemGroup>
 		<AvaloniaResource Include="Assets\Icon.ico" />
 		<EmbeddedResource Include="Assets\Notification.wav" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="Infrastructure\Images\" />
 	</ItemGroup>
 
 	<!--
