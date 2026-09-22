@@ -10,8 +10,21 @@ permissions:
   attestations: write
 
 jobs:
-  publish:
-    runs-on: windows-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          # NativeAOT cannot cross-compile: each RID must be built on its own OS.
+          - os: windows-latest
+            rid: win-x64
+            binary: TinyTrophy.exe
+            artifact: tinytrophy_windows_amd64.exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            binary: TinyTrophy
+            artifact: tinytrophy_linux_amd64
+
+    runs-on: ${{ matrix.os }}
 
     env:
       PROJECT_PATH: 'src/TinyTrophy.csproj'
@@ -27,25 +40,24 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Publish Windows x64 binary
-        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r win-x64 -o ./publish
+      - name: Install NativeAOT prerequisites
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
-      - name: Rename Windows x64 binary
-        run: mv ./publish/TinyTrophy.exe ./publish/tinytrophy_windows_amd64.exe
+      - name: Publish ${{ matrix.rid }} binary
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r ${{ matrix.rid }} -o ./publish
 
-      - name: Publish Linux x64 binary
-        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -r linux-x64 -o ./publish
+      - name: Rename ${{ matrix.rid }} binary
+        run: mv ./publish/${{ matrix.binary }} ./publish/${{ matrix.artifact }}
 
-      - name: Rename Linux x64 binary
-        run: mv ./publish/TinyTrophy ./publish/tinytrophy_linux_amd64
-
+      # The native dependencies are embedded in the executable, so a single file ships.
       - name: Generate build provenance
         uses: actions/attest@v4
         with:
-          subject-path: './publish/*'
+          subject-path: './publish/${{ matrix.artifact }}'
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: TinyTrophy
-          path: ./publish/*
+          name: tinytrophy-${{ matrix.rid }}
+          path: ./publish/${{ matrix.artifact }}

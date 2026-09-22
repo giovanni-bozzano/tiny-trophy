@@ -12,17 +12,29 @@
 	</PropertyGroup>
 
 	<!-- Publish optimizations -->
+	<!--
+		NativeAOT cannot be combined with PublishSingleFile, and the native dependencies
+		(Skia, HarfBuzz, ANGLE) ship as prebuilt DLLs that would otherwise sit beside the
+		executable. They are embedded as managed resources instead, then extracted and
+		preloaded by NativeLibraryLoader so a single .exe remains the whole deliverable.
+	-->
 	<PropertyGroup Condition="'$(Configuration)' != 'Debug'">
-		<PublishTrimmed>true</PublishTrimmed>
+		<PublishAot>true</PublishAot>
 		<TrimMode>full</TrimMode>
-		<PublishSingleFile>true</PublishSingleFile>
-		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 		<SelfContained>true</SelfContained>
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
 		<InvariantGlobalization>true</InvariantGlobalization>
 		<StripSymbols>true</StripSymbols>
+		<OptimizationPreference>Size</OptimizationPreference>
+		<EmbedNativeLibraries>true</EmbedNativeLibraries>
+	</PropertyGroup>
+
+	<!-- Required for Avalonia's Win32 COM interop (tray icon, drag/drop) under NativeAOT. -->
+	<PropertyGroup>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -46,10 +58,36 @@
 	  <Folder Include="Infrastructure\Images\" />
 	</ItemGroup>
 
-	<!-- Strip native .pdb files from publish output -->
-	<Target Name="RemoveNativePdbs" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(Configuration)' != 'Debug'">
+	<!--
+		Embed the native dependencies resolved from NuGet runtime assets as managed
+		resources so the published output is a single executable. Runs after reference
+		resolution (when NativeCopyLocalItems is populated) and before resource names are
+		computed. NativeLibraryLoader reads them back using the TinyTrophy.Native.* names.
+		NativeCopyLocalItems also carries the matching .pdb symbol files, which are far
+		larger than the libraries themselves and must not be embedded.
+	-->
+	<Target Name="EmbedNativeLibraries"
+			AfterTargets="ResolveReferences"
+			BeforeTargets="PrepareResourceNames"
+			Condition="'$(EmbedNativeLibraries)' == 'true'">
+		<ItemGroup>
+			<NativeLibraryToEmbed Include="@(NativeCopyLocalItems)"
+								  Condition="'%(Extension)' == '.dll' or '%(Extension)' == '.so' or '%(Extension)' == '.dylib'" />
+			<EmbeddedResource Include="@(NativeLibraryToEmbed)">
+				<LogicalName>TinyTrophy.Native.%(Filename)%(Extension)</LogicalName>
+				<Visible>false</Visible>
+			</EmbeddedResource>
+		</ItemGroup>
+	</Target>
+
+	<!--
+		Drop the now-embedded natives and every .pdb from the publish output so only the
+		AOT executable ships.
+	-->
+	<Target Name="RemoveRedundantPublishFiles" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(Configuration)' != 'Debug'">
 		<ItemGroup>
 			<ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').EndsWith('.pdb'))" />
+			<ResolvedFileToPublish Remove="@(NativeCopyLocalItems)" Condition="'$(EmbedNativeLibraries)' == 'true'" />
 		</ItemGroup>
 	</Target>
 </Project>
