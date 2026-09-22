@@ -5,24 +5,17 @@ namespace TinyTrophy;
 
 class Program
 {
-	// Rooted in a static field so the GC cannot finalize it while the app runs: the finalizer would
-	// close the handle, release ownership of the name and let a second instance start.
-	private static Mutex? s_singleInstanceMutex;
-
 	// Nothing before BuildAvaloniaApp may use Avalonia or third-party APIs — the framework isn't ready yet.
 	[STAThread]
 	public static void Main(string[] args)
 	{
-		s_singleInstanceMutex = new Mutex(true, "TinyTrophy_SingleInstance", out bool createdNew);
-		if (!createdNew)
+		if (!SingleInstance.TryAcquire())
 			return;
 
 		// Embedded native libraries must be on disk and loaded before Avalonia P/Invokes into them.
 		NativeLibraryLoader.Initialize();
 
 		BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-
-		GC.KeepAlive(s_singleInstanceMutex);
 	}
 
 	// Required by the Avalonia visual designer.

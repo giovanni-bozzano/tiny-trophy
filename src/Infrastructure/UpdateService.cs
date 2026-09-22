@@ -141,6 +141,10 @@ public static class UpdateService
 		string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? string.Empty;
 		WriteUpdatedFlag(version);
 
+		// Drop the single-instance lock first: the new process starts before this one exits and would
+		// otherwise see the lock still held and quit immediately.
+		SingleInstance.Release();
+
 		// Relaunch with the new version
 		Process.Start(new ProcessStartInfo(currentBinary) { UseShellExecute = true });
 		Environment.Exit(0);
