@@ -32,6 +32,11 @@ public sealed partial class MainViewModel
 	public HomeViewModel HomeViewModel { get; }
 	public SettingsViewModel SettingsViewModel { get; }
 
+	/// <summary>
+	/// The view that is logically active, even if currently suspended while the window is hidden.
+	/// </summary>
+	public object? ActiveView => CurrentView ?? _suspendedView;
+
 	public MainViewModel(
 		IAchievementService achievementService,
 		ISettingsService settingsService,
@@ -89,6 +94,13 @@ public sealed partial class MainViewModel
 	[RelayCommand]
 	private void GoBack()
 	{
+		if (CurrentView is null && _suspendedView is not null)
+		{
+			_suspendedView = HomeViewModel;
+			CanGoBack = false;
+			return;
+		}
+
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
 	}

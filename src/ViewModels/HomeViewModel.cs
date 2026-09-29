@@ -160,7 +160,7 @@ public sealed partial class HomeViewModel(
 			LoadingProgress = 100;
 
 			// If a game detail page is open, update it with the new metadata
-			if (mainViewModel.CurrentView is GameDetailViewModel detailVm)
+			if (mainViewModel.ActiveView is GameDetailViewModel detailVm)
 			{
 				Game? updatedGame = _allGames.FirstOrDefault(g => g.AppId == detailVm.GameAppId);
 				if (updatedGame is null || (updatedGame.UnlockedCount == 0 && settingsService.Settings.Achievements.HideZeroPercent))
