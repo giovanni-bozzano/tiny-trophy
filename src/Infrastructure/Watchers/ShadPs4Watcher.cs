@@ -9,6 +9,12 @@ namespace TinyTrophy.Infrastructure.Watchers;
 /// </summary>
 public sealed class ShadPs4Watcher : GameWatcherBase
 {
+	private const string KeyPrefix = "shadps4:";
+
+	protected override AchievementSource Source => AchievementSource.ShadPs4;
+
+	protected override string GetGameId(string key) => key[KeyPrefix.Length..];
+
 	protected override void InitializeKnownState()
 	{
 		string? homeDir = ShadPs4Scanner.GetShadPs4HomeDir();

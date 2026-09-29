@@ -7,7 +7,7 @@ namespace TinyTrophy.Infrastructure.Scanners;
 /// Each subdirectory is expected to be a Steam AppID containing achievement files.
 /// </summary>
 public sealed class SteamEmulatorScanner(ISettingsService settings)
-	: IAchievementScanner
+	: ISingleGameScanner
 {
 	public AchievementSource Source => AchievementSource.SteamEmulator;
 	public string DisplayName => "Steam emulator folders";
@@ -106,30 +106,60 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 		return Task.FromResult<IReadOnlyList<Game>>(games);
 	}
 
+	public Task<IReadOnlyList<Game>> ParseGameAsync(
+		string gameId,
+		CancellationToken ct = default)
+	{
+		List<Game> games = [];
+		if (!AchievementFileParser.IsAppId(gameId))
+			return Task.FromResult<IReadOnlyList<Game>>(games);
+
+		foreach (string resolved in GetEnabledResolvedDirectories(settings.Settings))
+		{
+			ct.ThrowIfCancellationRequested();
+
+			try
+			{
+				string appDir = Path.Combine(resolved, gameId);
+				if (Directory.Exists(appDir) && TryParseGame(appDir) is Game game)
+					games.Add(game);
+			}
+			catch { }
+		}
+
+		return Task.FromResult<IReadOnlyList<Game>>(games);
+	}
+
 	private static void ScanFolder(
 		string path,
 		List<Game> games)
 	{
 		foreach (string appDir in Directory.EnumerateDirectories(path))
 		{
-			string appId = Path.GetFileName(appDir);
-
-			if (!AchievementFileParser.IsAppId(appId))
+			if (!AchievementFileParser.IsAppId(Path.GetFileName(appDir)))
 				continue;
 
-			List<Achievement> achievements = AchievementFileParser.ParseFromDirectory(appDir);
-			if (achievements.Count == 0)
-				continue;
-
-			games.Add(new Game
-			{
-				AppId = appId,
-				Name = $"AppID: {appId}",
-				Source = AchievementSource.SteamEmulator,
-				FolderPath = appDir,
-				Achievements = achievements
-			});
+			if (TryParseGame(appDir) is Game game)
+				games.Add(game);
 		}
+	}
+
+	private static Game? TryParseGame(string appDir)
+	{
+		string appId = Path.GetFileName(appDir);
+
+		List<Achievement> achievements = AchievementFileParser.ParseFromDirectory(appDir);
+		if (achievements.Count == 0)
+			return null;
+
+		return new Game
+		{
+			AppId = appId,
+			Name = $"AppID: {appId}",
+			Source = AchievementSource.SteamEmulator,
+			FolderPath = appDir,
+			Achievements = achievements
+		};
 	}
 
 	/// <summary>

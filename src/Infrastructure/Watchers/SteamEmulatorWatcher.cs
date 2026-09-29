@@ -12,6 +12,8 @@ public sealed class SteamEmulatorWatcher(
 	ISteamApiService steamApi)
 	: GameWatcherBase
 {
+	protected override AchievementSource Source => AchievementSource.SteamEmulator;
+
 	protected override void InitializeKnownState()
 	{
 		IReadOnlyList<string> resolvedDirectories = SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings);

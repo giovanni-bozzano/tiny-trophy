@@ -15,9 +15,8 @@ public interface IGameWatcher : IDisposable
 
 	/// <summary>
 	/// Fired when the set of achievements for a game changes (added or removed).
-	/// The event arg is the game key (e.g. appId or npwrId).
 	/// </summary>
-	event EventHandler<string>? AchievementsChanged;
+	event EventHandler<GameChangedEventArgs>? AchievementsChanged;
 
 	/// <summary>
 	/// Starts watching for achievement changes.

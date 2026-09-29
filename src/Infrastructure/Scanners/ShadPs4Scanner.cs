@@ -11,7 +11,7 @@ namespace TinyTrophy.Infrastructure.Scanners;
 /// Progress from %APPDATA%\shadPS4\home\{userId}\trophy\{NPWR}.xml
 /// </summary>
 public sealed partial class ShadPs4Scanner(ISettingsService settings)
-	: IAchievementScanner
+	: ISingleGameScanner
 {
 	private static readonly string ShadPs4Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "shadPS4");
 
@@ -59,41 +59,81 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 			try
 			{
 				string npwrId = Path.GetFileName(npwrDir);
-				string xmlDir = Path.Combine(npwrDir, "Xml");
-				string iconsDir = Path.Combine(npwrDir, "Icons");
+				progressFilesByNpwr.TryGetValue(npwrId.ToUpperInvariant(), out List<string>? progressFiles);
 
-				if (!Directory.Exists(xmlDir))
-					continue;
-
-				TrophySet? trophySet = ParseTrophySet(xmlDir, npwrId);
-				if (trophySet is null || trophySet.Trophies.Count == 0)
-					continue;
-
-				// Apply progress from all user files, taking the latest unlock
-				if (progressFilesByNpwr.TryGetValue(npwrId.ToUpperInvariant(), out List<string>? progressFiles))
-				{
-					foreach (string progressFile in progressFiles)
-						ApplyProgress(trophySet, progressFile);
-				}
-
-				List<Achievement> achievements = [.. trophySet.Trophies.Select(t => ToAchievement(t, iconsDir))];
-
-				if (achievements.Count == 0)
-					continue;
-
-				games.Add(new Game
-				{
-					AppId = npwrId,
-					Name = trophySet.Title ?? $"ShadPS4: {npwrId}",
-					ImageUri = GetGameImageUri(iconsDir),
-					Source = AchievementSource.ShadPs4,
-					Achievements = achievements
-				});
+				if (TryParseGame(npwrDir, progressFiles ?? []) is Game game)
+					games.Add(game);
 			}
 			catch { }
 		}
 
 		return Task.FromResult<IReadOnlyList<Game>>(games);
+	}
+
+	public Task<IReadOnlyList<Game>> ParseGameAsync(
+		string gameId,
+		CancellationToken ct = default)
+	{
+		List<Game> games = [];
+
+		if (!settings.Settings.ShadPs4Enabled)
+			return Task.FromResult<IReadOnlyList<Game>>(games);
+
+		try
+		{
+			string npwrDir = Path.Combine(ShadPs4Root, "trophy", gameId);
+			List<string> progressFiles = [];
+
+			string homeDir = Path.Combine(ShadPs4Root, "home");
+			if (Directory.Exists(homeDir))
+			{
+				foreach (string userDir in Directory.EnumerateDirectories(homeDir))
+				{
+					string progressFile = Path.Combine(userDir, "trophy", $"{gameId}.xml");
+					if (File.Exists(progressFile))
+						progressFiles.Add(progressFile);
+				}
+			}
+
+			if (TryParseGame(npwrDir, progressFiles) is Game game)
+				games.Add(game);
+		}
+		catch { }
+
+		return Task.FromResult<IReadOnlyList<Game>>(games);
+	}
+
+	private static Game? TryParseGame(
+		string npwrDir,
+		IEnumerable<string> progressFiles)
+	{
+		string npwrId = Path.GetFileName(npwrDir);
+		string xmlDir = Path.Combine(npwrDir, "Xml");
+		string iconsDir = Path.Combine(npwrDir, "Icons");
+
+		if (!Directory.Exists(xmlDir))
+			return null;
+
+		TrophySet? trophySet = ParseTrophySet(xmlDir, npwrId);
+		if (trophySet is null || trophySet.Trophies.Count == 0)
+			return null;
+
+		// Apply progress from all user files, taking the latest unlock
+		foreach (string progressFile in progressFiles)
+			ApplyProgress(trophySet, progressFile);
+
+		List<Achievement> achievements = [.. trophySet.Trophies.Select(t => ToAchievement(t, iconsDir))];
+		if (achievements.Count == 0)
+			return null;
+
+		return new Game
+		{
+			AppId = npwrId,
+			Name = trophySet.Title ?? $"ShadPS4: {npwrId}",
+			ImageUri = GetGameImageUri(iconsDir),
+			Source = AchievementSource.ShadPs4,
+			Achievements = achievements
+		};
 	}
 
 	/// <summary>

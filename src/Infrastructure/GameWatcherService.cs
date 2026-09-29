@@ -18,7 +18,7 @@ public interface IGameWatcherService : IDisposable
 	/// <summary>
 	/// Fired when any watcher detects changes in a game's achievement set.
 	/// </summary>
-	event EventHandler<string>? AchievementsChanged;
+	event EventHandler<GameChangedEventArgs>? AchievementsChanged;
 
 	void Start();
 	void Stop();
@@ -32,7 +32,7 @@ public sealed class GameWatcherService(IEnumerable<IGameWatcher> watchers)
 	private bool _subscribed;
 
 	public event EventHandler<AchievementUnlockedEventArgs>? AchievementUnlocked;
-	public event EventHandler<string>? AchievementsChanged;
+	public event EventHandler<GameChangedEventArgs>? AchievementsChanged;
 
 	public void Start()
 	{

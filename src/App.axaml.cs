@@ -120,11 +120,11 @@ public partial class App
 		MainViewModel mainViewModel = services.MainViewModel;
 		IGameWatcherService gameWatcher = services.GameWatcher;
 
-		gameWatcher.AchievementsChanged += (_, _) =>
+		gameWatcher.AchievementsChanged += (_, e) =>
 		{
 			Dispatcher.UIThread.Post(() =>
 			{
-				_ = mainViewModel.HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+				_ = mainViewModel.HomeViewModel.RefreshGameAsync(e.Source, e.GameId);
 			});
 		};
 

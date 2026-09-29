@@ -18,7 +18,17 @@ public abstract class GameWatcherBase : IGameWatcher
 	protected const int DebounceMs = 800;
 
 	public event EventHandler<AchievementUnlockedEventArgs>? AchievementUnlocked;
-	public event EventHandler<string>? AchievementsChanged;
+	public event EventHandler<GameChangedEventArgs>? AchievementsChanged;
+
+	/// <summary>
+	/// The achievement source this watcher monitors.
+	/// </summary>
+	protected abstract AchievementSource Source { get; }
+
+	/// <summary>
+	/// Maps a detection key to the game id used by the scanners. Defaults to the key itself.
+	/// </summary>
+	protected virtual string GetGameId(string key) => key;
 
 	public void Start()
 	{
@@ -104,7 +114,7 @@ public abstract class GameWatcherBase : IGameWatcher
 		if (newAchievements.Count == 0 && !hasRemovals)
 			return [];
 
-		AchievementsChanged?.Invoke(this, key);
+		AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, GetGameId(key)));
 
 		return newAchievements;
 	}

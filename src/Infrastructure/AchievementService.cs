@@ -9,8 +9,25 @@ namespace TinyTrophy.Infrastructure;
 /// </summary>
 public interface IAchievementService
 {
+	/// <summary>
+	/// Scans every source and returns one entry per source and game, not merged.
+	/// </summary>
 	Task<IReadOnlyList<Game>> ScanGamesAsync(IProgress<(string scannerName, int current, int total)>? progress = null, CancellationToken ct = default);
+
+	/// <summary>
+	/// Re-reads and enriches a single game of a single source. Returns <see langword="null"/> if the source
+	/// can't refresh individual games, in which case a full scan is required.
+	/// </summary>
+	Task<IReadOnlyList<Game>?> ScanGameAsync(AchievementSource source, string gameId, CancellationToken ct = default);
+
 	Task EnrichGamesAsync(IReadOnlyList<Game> games, IProgress<int>? progress = null, CancellationToken ct = default);
+
+	/// <summary>
+	/// Combines entries of the same game coming from different sources, according to the settings.
+	/// The input games are left untouched, so they can be merged again later.
+	/// </summary>
+	IReadOnlyList<Game> MergeGames(IReadOnlyList<Game> games);
+
 	UserProfile GetUserProfile(IReadOnlyList<Game> games);
 }
 
@@ -44,7 +61,20 @@ public sealed class AchievementService(
 			}
 		}
 
-		return MergeGames(allGames);
+		return allGames;
+	}
+
+	public async Task<IReadOnlyList<Game>?> ScanGameAsync(
+		AchievementSource source,
+		string gameId,
+		CancellationToken ct = default)
+	{
+		if (scanners.OfType<ISingleGameScanner>().FirstOrDefault(s => s.Source == source) is not ISingleGameScanner scanner)
+			return null;
+
+		IReadOnlyList<Game> games = await scanner.ParseGameAsync(gameId, ct);
+		await EnrichGamesAsync(games, ct: ct);
+		return games;
 	}
 
 	public async Task EnrichGamesAsync(
@@ -108,7 +138,7 @@ public sealed class AchievementService(
 		};
 	}
 
-	private List<Game> MergeGames(List<Game> games)
+	public IReadOnlyList<Game> MergeGames(IReadOnlyList<Game> games)
 	{
 		if (!settings.Settings.Achievements.MergeDuplicate)
 			return games;
@@ -118,7 +148,14 @@ public sealed class AchievementService(
 
 		foreach (IGrouping<string, Game> group in grouped)
 		{
-			Game primary = group.First();
+			if (!group.Skip(1).Any())
+			{
+				merged.Add(group.First());
+				continue;
+			}
+
+			// Copy the primary entry, since merging changes its achievements
+			Game primary = Copy(group.First());
 
 			foreach (Game? other in group.Skip(1))
 			{
@@ -127,7 +164,7 @@ public sealed class AchievementService(
 					Achievement? existing = primary.Achievements.FirstOrDefault(a => a.Id == ach.Id);
 					if (existing is null)
 					{
-						primary.Achievements.Add(ach);
+						primary.Achievements.Add(Copy(ach));
 					}
 					else if (!existing.IsUnlocked && ach.IsUnlocked)
 					{
@@ -142,4 +179,30 @@ public sealed class AchievementService(
 
 		return merged;
 	}
+
+	private static Game Copy(Game game) => new()
+	{
+		AppId = game.AppId,
+		Name = game.Name,
+		ImageUri = game.ImageUri,
+		Source = game.Source,
+		FolderPath = game.FolderPath,
+		Achievements = [.. game.Achievements.Select(Copy)],
+		Playtime = game.Playtime,
+		LastPlayed = game.LastPlayed
+	};
+
+	private static Achievement Copy(Achievement achievement) => new()
+	{
+		Id = achievement.Id,
+		Name = achievement.Name,
+		Description = achievement.Description,
+		IconUri = achievement.IconUri,
+		IconLockedUri = achievement.IconLockedUri,
+		IsUnlocked = achievement.IsUnlocked,
+		UnlockTime = achievement.UnlockTime,
+		IsHidden = achievement.IsHidden,
+		GlobalPercentage = achievement.GlobalPercentage,
+		TrophyType = achievement.TrophyType
+	};
 }

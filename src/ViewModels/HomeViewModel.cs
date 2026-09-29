@@ -13,7 +13,13 @@ public sealed partial class HomeViewModel(
 	ISteamApiService steamApi)
 	: ObservableObject
 {
+	// One entry per source and game, as scanned; _allGames is rebuilt from it by merging duplicates
+	private List<Game> _sourceGames = [];
 	private List<Game> _allGames = [];
+
+	// Games that changed while a full load was running, refreshed once it completes
+	private readonly HashSet<(AchievementSource Source, string GameId)> _pendingChanges = [];
+	private bool _isFullLoadRunning;
 
 	[ObservableProperty]
 	public partial ObservableCollection<GameItemViewModel> Games { get; set; } = [];
@@ -102,6 +108,8 @@ public sealed partial class HomeViewModel(
 	[RelayCommand]
 	private async Task LoadGamesAsync()
 	{
+		_isFullLoadRunning = true;
+		_pendingChanges.Clear();
 		IsLoading = true;
 		IsScanning = true;
 		ScanningProgress = 0;
@@ -127,7 +135,8 @@ public sealed partial class HomeViewModel(
 				ScanningStatus = $"Scanning {p.scannerName}... ({p.current}/{p.total})";
 			});
 			IReadOnlyList<Game> games = await achievementService.ScanGamesAsync(scanProgress);
-			_allGames = [.. games];
+			_sourceGames = [.. games];
+			_allGames = [.. achievementService.MergeGames(_sourceGames)];
 			TotalGameCount = _allGames.Count;
 
 			ApplyFilter();
@@ -137,7 +146,10 @@ public sealed partial class HomeViewModel(
 			IsLoading = false;
 
 			if (TotalGameCount == 0)
+			{
+				UserProfile = achievementService.GetUserProfile(_allGames);
 				return;
+			}
 
 			// Fetch metadata in the background (games remain visible)
 			IsEnriching = true;
@@ -151,23 +163,12 @@ public sealed partial class HomeViewModel(
 				LoadingStatus = $"Fetching metadata... ({done}/{TotalGameCount})";
 			});
 
-			await achievementService.EnrichGamesAsync(games, progress);
+			await achievementService.EnrichGamesAsync(_sourceGames, progress);
 
 			// Refresh the UI with the enriched data
 			EnrichedCount = TotalGameCount;
-			UserProfile = achievementService.GetUserProfile(games);
-			ApplyFilter();
 			LoadingProgress = 100;
-
-			// If a game detail page is open, update it with the new metadata
-			if (mainViewModel.ActiveView is GameDetailViewModel detailVm)
-			{
-				Game? updatedGame = _allGames.FirstOrDefault(g => g.AppId == detailVm.GameAppId);
-				if (updatedGame is null || (updatedGame.UnlockedCount == 0 && settingsService.Settings.Achievements.HideZeroPercent))
-					mainViewModel.GoBackCommand.Execute(null);
-				else
-					detailVm.RefreshFromGame(updatedGame);
-			}
+			RebuildGames();
 		}
 		catch (Exception ex)
 		{
@@ -177,6 +178,83 @@ public sealed partial class HomeViewModel(
 		{
 			IsLoading = false;
 			IsEnriching = false;
+			_isFullLoadRunning = false;
+		}
+
+		await ApplyPendingChangesAsync();
+	}
+
+	/// <summary>
+	/// Updates a single game after its achievement files changed, without rescanning everything.
+	/// Must be called on the UI thread.
+	/// </summary>
+	public async Task RefreshGameAsync(
+		AchievementSource source,
+		string gameId)
+	{
+		// The full load will read the latest files anyway, but it may have already passed this game
+		if (_isFullLoadRunning)
+		{
+			_pendingChanges.Add((source, gameId));
+			return;
+		}
+
+		IReadOnlyList<Game>? updated;
+		try
+		{
+			updated = await achievementService.ScanGameAsync(source, gameId);
+		}
+		catch
+		{
+			updated = null;
+		}
+
+		// The source can't refresh single games, fall back to a full reload
+		if (updated is null)
+		{
+			await LoadGamesCommand.ExecuteAsync(null);
+			return;
+		}
+
+		// A full load may have started while scanning, and will pick up this change itself
+		if (_isFullLoadRunning)
+			return;
+
+		_sourceGames.RemoveAll(g => g.Source == source && string.Equals(g.AppId, gameId, StringComparison.OrdinalIgnoreCase));
+		_sourceGames.AddRange(updated);
+		RebuildGames();
+	}
+
+	private async Task ApplyPendingChangesAsync()
+	{
+		if (_pendingChanges.Count == 0)
+			return;
+
+		List<(AchievementSource Source, string GameId)> changes = [.. _pendingChanges];
+		_pendingChanges.Clear();
+
+		foreach ((AchievementSource source, string gameId) in changes)
+			await RefreshGameAsync(source, gameId);
+	}
+
+	/// <summary>
+	/// Merges the per-source games, updates the list and stats, and refreshes the open detail page.
+	/// </summary>
+	private void RebuildGames()
+	{
+		_allGames = [.. achievementService.MergeGames(_sourceGames)];
+		TotalGameCount = _allGames.Count;
+		UserProfile = achievementService.GetUserProfile(_allGames);
+		ApplyFilter();
+
+		// If a game detail page is open, update it with the new data
+		if (mainViewModel.ActiveView is GameDetailViewModel detailVm)
+		{
+			Game? updatedGame = _allGames.FirstOrDefault(g => g.AppId == detailVm.GameAppId);
+			if (updatedGame is null || (updatedGame.UnlockedCount == 0 && settingsService.Settings.Achievements.HideZeroPercent))
+				mainViewModel.GoBackCommand.Execute(null);
+			else
+				detailVm.RefreshFromGame(updatedGame);
 		}
 	}
 
