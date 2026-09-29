@@ -220,7 +220,7 @@ public sealed partial class HomeViewModel(
 		if (_isFullLoadRunning)
 			return;
 
-		_sourceGames.RemoveAll(g => g.Source == source && string.Equals(g.AppId, gameId, StringComparison.OrdinalIgnoreCase));
+		_sourceGames.RemoveAll(g => g.Source == source && g.AppId == gameId);
 		_sourceGames.AddRange(updated);
 		RebuildGames();
 	}

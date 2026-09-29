@@ -156,15 +156,19 @@ public sealed class AchievementService(
 
 			// Copy the primary entry, since merging changes its achievements
 			Game primary = Copy(group.First());
+			Dictionary<string, Achievement> byId = new(StringComparer.OrdinalIgnoreCase);
+			foreach (Achievement ach in primary.Achievements)
+				byId.TryAdd(ach.Id, ach);
 
 			foreach (Game? other in group.Skip(1))
 			{
 				foreach (Achievement ach in other.Achievements)
 				{
-					Achievement? existing = primary.Achievements.FirstOrDefault(a => a.Id == ach.Id);
-					if (existing is null)
+					if (!byId.TryGetValue(ach.Id, out Achievement? existing))
 					{
-						primary.Achievements.Add(Copy(ach));
+						Achievement copy = Copy(ach);
+						primary.Achievements.Add(copy);
+						byId[ach.Id] = copy;
 					}
 					else if (!existing.IsUnlocked && ach.IsUnlocked)
 					{

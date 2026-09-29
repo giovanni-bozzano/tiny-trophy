@@ -13,7 +13,14 @@ public abstract class GameWatcherBase : IGameWatcher
 	private readonly List<FileSystemWatcher> _watchers = [];
 	private readonly ConcurrentDictionary<string, HashSet<string>> _knownUnlocks = new();
 	private readonly ConcurrentDictionary<string, CancellationTokenSource> _debounceTimers = new();
-	private readonly ConcurrentDictionary<string, SemaphoreSlim> _processingLocks = new();
+
+	// Per-game locks with the number of detections using or waiting for them, removed once unused
+	private readonly Dictionary<string, (SemaphoreSlim Semaphore, int Users)> _processingLocks = [];
+	private readonly Lock _processingLocksGate = new();
+
+	// Bumped by Stop(); detection runs from an older generation must not touch state or raise events
+	private int _generation;
+	private static readonly AsyncLocal<int> RunGeneration = new();
 
 	protected const int DebounceMs = 800;
 
@@ -25,11 +32,6 @@ public abstract class GameWatcherBase : IGameWatcher
 	/// </summary>
 	protected abstract AchievementSource Source { get; }
 
-	/// <summary>
-	/// Maps a detection key to the game id used by the scanners. Defaults to the key itself.
-	/// </summary>
-	protected virtual string GetGameId(string key) => key;
-
 	public void Start()
 	{
 		Stop();
@@ -39,6 +41,8 @@ public abstract class GameWatcherBase : IGameWatcher
 
 	public void Stop()
 	{
+		Interlocked.Increment(ref _generation);
+
 		foreach (FileSystemWatcher watcher in _watchers)
 		{
 			watcher.EnableRaisingEvents = false;
@@ -47,8 +51,20 @@ public abstract class GameWatcherBase : IGameWatcher
 		_watchers.Clear();
 
 		foreach (CancellationTokenSource cts in _debounceTimers.Values)
-			cts.Cancel();
+			TryCancel(cts);
 		_debounceTimers.Clear();
+	}
+
+	/// <summary>
+	/// Cancels a debounce token, which its detection run may have already finished and disposed.
+	/// </summary>
+	private static void TryCancel(CancellationTokenSource cts)
+	{
+		try
+		{
+			cts.Cancel();
+		}
+		catch (ObjectDisposedException) { }
 	}
 
 	public void Dispose()
@@ -100,6 +116,9 @@ public abstract class GameWatcherBase : IGameWatcher
 		string key,
 		List<Achievement> currentUnlocked)
 	{
+		if (IsStaleRun())
+			return [];
+
 		HashSet<string> currentIds = currentUnlocked
 			.Select(a => a.Id)
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -114,7 +133,7 @@ public abstract class GameWatcherBase : IGameWatcher
 		if (newAchievements.Count == 0 && !hasRemovals)
 			return [];
 
-		AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, GetGameId(key)));
+		AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
 
 		return newAchievements;
 	}
@@ -126,8 +145,16 @@ public abstract class GameWatcherBase : IGameWatcher
 		string gameKey,
 		Achievement achievement)
 	{
+		if (IsStaleRun())
+			return;
+
 		AchievementUnlocked?.Invoke(this, new AchievementUnlockedEventArgs(gameKey, achievement));
 	}
+
+	/// <summary>
+	/// True when called from a detection run scheduled before the latest <see cref="Stop"/>.
+	/// </summary>
+	private bool IsStaleRun() => RunGeneration.Value != Volatile.Read(ref _generation);
 
 	/// <summary>
 	/// Schedules debounced detection for the given key.
@@ -136,34 +163,74 @@ public abstract class GameWatcherBase : IGameWatcher
 	protected void ScheduleDetection(string key)
 	{
 		if (_debounceTimers.TryRemove(key, out CancellationTokenSource? previousCts))
-			previousCts.Cancel();
+			TryCancel(previousCts);
 
 		CancellationTokenSource cts = new();
 		_debounceTimers[key] = cts;
+		int generation = Volatile.Read(ref _generation);
 
 		_ = Task.Run(async () =>
 		{
-			try
+			RunGeneration.Value = generation;
+
+			// The detection run owns its token: whoever replaces or stops it only cancels it
+			using (cts)
 			{
-				await Task.Delay(DebounceMs, cts.Token);
-			}
-			catch (OperationCanceledException)
-			{
-				return;
+				try
+				{
+					await Task.Delay(DebounceMs, cts.Token);
+				}
+				catch (OperationCanceledException)
+				{
+					return;
+				}
+
+				// Only remove this run's own entry, not a newer one scheduled meanwhile
+				_debounceTimers.TryRemove(new KeyValuePair<string, CancellationTokenSource>(key, cts));
 			}
 
-			_debounceTimers.TryRemove(key, out _);
-
-			SemaphoreSlim semaphore = _processingLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+			SemaphoreSlim semaphore = AcquireProcessingLock(key);
 			await semaphore.WaitAsync();
 			try
 			{
-				await DetectNewAchievementsAsync(key);
+				if (!IsStaleRun())
+					await DetectNewAchievementsAsync(key);
 			}
 			finally
 			{
 				semaphore.Release();
+				ReleaseProcessingLock(key);
 			}
 		});
+	}
+
+	private SemaphoreSlim AcquireProcessingLock(string key)
+	{
+		lock (_processingLocksGate)
+		{
+			if (!_processingLocks.TryGetValue(key, out (SemaphoreSlim Semaphore, int Users) entry))
+				entry = (new SemaphoreSlim(1, 1), 0);
+
+			(SemaphoreSlim semaphore, int users) = entry;
+
+			_processingLocks[key] = (semaphore, users + 1);
+			return semaphore;
+		}
+	}
+
+	private void ReleaseProcessingLock(string key)
+	{
+		lock (_processingLocksGate)
+		{
+			(SemaphoreSlim semaphore, int users) = _processingLocks[key];
+			if (users > 1)
+			{
+				_processingLocks[key] = (semaphore, users - 1);
+				return;
+			}
+
+			_processingLocks.Remove(key);
+			semaphore.Dispose();
+		}
 	}
 }

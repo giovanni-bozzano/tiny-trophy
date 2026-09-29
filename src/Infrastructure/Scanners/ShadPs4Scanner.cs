@@ -59,7 +59,7 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 			try
 			{
 				string npwrId = Path.GetFileName(npwrDir);
-				progressFilesByNpwr.TryGetValue(npwrId.ToUpperInvariant(), out List<string>? progressFiles);
+				progressFilesByNpwr.TryGetValue(npwrId, out List<string>? progressFiles);
 
 				if (TryParseGame(npwrDir, progressFiles ?? []) is Game game)
 					games.Add(game);
@@ -208,7 +208,7 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 
 	private static Dictionary<string, List<string>> GetProgressFilesByNpwr()
 	{
-		Dictionary<string, List<string>> result = new(StringComparer.OrdinalIgnoreCase);
+		Dictionary<string, List<string>> result = [];
 		string homeDir = Path.Combine(ShadPs4Root, "home");
 
 		if (!Directory.Exists(homeDir))
@@ -224,7 +224,7 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 
 				foreach (string xmlFile in Directory.EnumerateFiles(userTrophyDir, "*.xml"))
 				{
-					string npwrId = Path.GetFileNameWithoutExtension(xmlFile).ToUpperInvariant();
+					string npwrId = Path.GetFileNameWithoutExtension(xmlFile);
 					if (!result.TryGetValue(npwrId, out List<string>? list))
 					{
 						list = [];
@@ -268,7 +268,7 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 			?? baseDoc.Descendants("npcommid").FirstOrDefault()?.Value.Trim()
 			?? npwrId;
 
-		Dictionary<string, TrophyEntry> trophies = [];
+		Dictionary<string, TrophyEntry> trophies = new(StringComparer.OrdinalIgnoreCase);
 
 		// Use only the base file (TROP_01.xml or TROP.xml) for achievement metadata
 		foreach (XElement el in baseDoc.Descendants("trophy"))
@@ -315,14 +315,17 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 		try
 		{
 			XDocument doc = XDocument.Load(progressFile);
+			Dictionary<string, TrophyEntry> byId = new(StringComparer.OrdinalIgnoreCase);
+			foreach (TrophyEntry trophy in trophySet.Trophies)
+				byId.TryAdd(trophy.Id, trophy);
+
 			foreach (XElement el in doc.Descendants("trophy"))
 			{
 				string? id = el.Attribute("id")?.Value;
 				if (id is null)
 					continue;
 
-				TrophyEntry? entry = trophySet.Trophies.FirstOrDefault(t => t.Id == id);
-				if (entry is null)
+				if (!byId.TryGetValue(id, out TrophyEntry? entry))
 					continue;
 
 				string unlockState = el.Attribute("unlockstate")?.Value ?? string.Empty;

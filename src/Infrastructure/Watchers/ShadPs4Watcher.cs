@@ -9,11 +9,7 @@ namespace TinyTrophy.Infrastructure.Watchers;
 /// </summary>
 public sealed class ShadPs4Watcher : GameWatcherBase
 {
-	private const string KeyPrefix = "shadps4:";
-
 	protected override AchievementSource Source => AchievementSource.ShadPs4;
-
-	protected override string GetGameId(string key) => key[KeyPrefix.Length..];
 
 	protected override void InitializeKnownState()
 	{
@@ -39,7 +35,7 @@ public sealed class ShadPs4Watcher : GameWatcherBase
 						.Select(a => a.Id)
 						.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-					SetKnownUnlocks($"shadps4:{npwrId}", unlocked);
+					SetKnownUnlocks(npwrId, unlocked);
 				}
 			}
 		}
@@ -78,18 +74,15 @@ public sealed class ShadPs4Watcher : GameWatcherBase
 
 		string? npwrId = ShadPs4Scanner.GetNpwrIdFromProgressFile(e.FullPath);
 		if (npwrId is not null)
-			ScheduleDetection($"shadps4:{npwrId}");
+			ScheduleDetection(npwrId);
 	}
 
-	protected override Task DetectNewAchievementsAsync(string key)
+	protected override Task DetectNewAchievementsAsync(string npwrId)
 	{
 		try
 		{
-			// Key format is "shadps4:{npwrId}"
-			string npwrId = key["shadps4:".Length..];
-
 			List<Achievement> currentUnlocked = [.. ShadPs4Scanner.ParseNpwrDirectory(npwrId).Where(a => a.IsUnlocked)];
-			List<Achievement> newAchievements = DiffAndUpdate(key, currentUnlocked);
+			List<Achievement> newAchievements = DiffAndUpdate(npwrId, currentUnlocked);
 
 			foreach (Achievement ach in newAchievements)
 			{

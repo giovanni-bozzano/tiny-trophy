@@ -212,11 +212,16 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	/// </summary>
 	public static string CollapsePath(string path)
 	{
+		// Real paths are case-insensitive on Windows only
+		StringComparison pathComparison = OperatingSystem.IsWindows()
+			? StringComparison.OrdinalIgnoreCase
+			: StringComparison.Ordinal;
+
 		string resultingPath = path;
 		foreach ((string? token, string? value) in s_pathTokens)
 		{
 			if (!string.IsNullOrEmpty(value))
-				resultingPath = resultingPath.Replace(value, token, StringComparison.OrdinalIgnoreCase);
+				resultingPath = resultingPath.Replace(value, token, pathComparison);
 		}
 
 		return resultingPath;

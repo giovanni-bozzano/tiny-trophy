@@ -70,9 +70,14 @@ public static class NativeLibraryLoader
 	/// </remarks>
 	private static void RemoveStaleVersions(string rootDir, string currentDir)
 	{
+		// Real paths are case-insensitive on Windows only
+		StringComparison pathComparison = OperatingSystem.IsWindows()
+			? StringComparison.OrdinalIgnoreCase
+			: StringComparison.Ordinal;
+
 		foreach (string directory in Directory.EnumerateDirectories(rootDir))
 		{
-			if (string.Equals(directory, currentDir, StringComparison.OrdinalIgnoreCase))
+			if (string.Equals(directory, currentDir, pathComparison))
 				continue;
 
 			try

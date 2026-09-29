@@ -45,10 +45,9 @@ public sealed class SettingsService
 		List<DirectoryConfig> savedWatchedDirectories = Settings.WatchedDirectories;
 
 		// Restore the user's disabled state for default watched directories
-		HashSet<string> disabledWatchedDirectories = savedWatchedDirectories
+		HashSet<string> disabledWatchedDirectories = [.. savedWatchedDirectories
 			.Where(d => d.IsDefault && !d.Enabled)
-			.Select(d => d.Path)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+			.Select(d => d.Path)];
 
 		foreach (DirectoryConfig watchedDirectory in defaultWatchedDirectories)
 		{
@@ -64,10 +63,9 @@ public sealed class SettingsService
 		List<DirectoryConfig> savedProtonPrefixDirectories = Settings.ProtonPrefixDirectories;
 
 		// Restore the user's disabled state for default Proton prefix directories
-		HashSet<string> disabledProtonPrefixDirectories = savedProtonPrefixDirectories
+		HashSet<string> disabledProtonPrefixDirectories = [.. savedProtonPrefixDirectories
 			.Where(d => d.IsDefault && !d.Enabled)
-			.Select(d => d.Path)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+			.Select(d => d.Path)];
 
 		foreach (DirectoryConfig protonPrefixDirectory in defaultProtonPrefixDirectories)
 		{
@@ -85,9 +83,7 @@ public sealed class SettingsService
 
 		// Only save custom folders (with portable paths) and explicitly disabled defaults
 		List<DirectoryConfig> originalWatchedDirectories = Settings.WatchedDirectories;
-		HashSet<string> currentDefaultWatchedDirectories = SteamEmulatorScanner.GetDefaultWatchedDirectories()
-			.Select(d => d.Path)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> currentDefaultWatchedDirectories = [.. SteamEmulatorScanner.GetDefaultWatchedDirectories().Select(d => d.Path)];
 
 		Settings.WatchedDirectories = [.. originalWatchedDirectories
 			.Where(d => !d.IsDefault || !d.Enabled && currentDefaultWatchedDirectories.Contains(d.Path))
@@ -101,9 +97,7 @@ public sealed class SettingsService
 
 		// Only save custom folders (with portable paths) and explicitly disabled defaults
 		List<DirectoryConfig> originalProtonPrefixDirectories = Settings.ProtonPrefixDirectories;
-		HashSet<string> currentDefaultProtonPrefixDirectories = SteamEmulatorScanner.GetDefaultProtonPrefixDirectories()
-			.Select(d => d.Path)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> currentDefaultProtonPrefixDirectories = [.. SteamEmulatorScanner.GetDefaultProtonPrefixDirectories().Select(d => d.Path)];
 
 		Settings.ProtonPrefixDirectories = [.. originalProtonPrefixDirectories
 			.Where(d => !d.IsDefault || !d.Enabled && currentDefaultProtonPrefixDirectories.Contains(d.Path))
