@@ -216,6 +216,9 @@ public partial class App
 		};
 
 		_trayIcon.Clicked += (_, _) => ShowMainWindow();
+
+		// Register with the application so the platform actually shows it
+		TrayIcon.SetIcons(this, [_trayIcon]);
 	}
 
 	private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";

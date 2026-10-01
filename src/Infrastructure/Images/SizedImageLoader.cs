@@ -1,7 +1,9 @@
 using AsyncImageLoader;
+using AsyncImageLoader.Core.Leases;
+using AsyncImageLoader.Core.Pipeline;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media.Imaging;
+using Avalonia.Media;
 using System.Collections.Concurrent;
 
 namespace TinyTrophy.Infrastructure.Images;
@@ -60,12 +62,14 @@ public static class SizedImageLoader
 
 		IAsyncImageLoader loader = GetLoader(sender) ?? ImageLoader.AsyncImageLoader;
 
-		Bitmap? bitmap = await Task.Run(async () =>
+		IImage? bitmap = await Task.Run(async () =>
 		{
 			try
 			{
 				await Task.Delay(10, cts.Token);
-				return await loader.ProvideImageAsync(url);
+				// The lease is not disposed: the bitmap is handed to the Image, and ImageSourceDisposer frees it
+				IImageLease? lease = await loader.LoadAsync(new ImageLoadRequest(url), cts.Token);
+				return lease?.Image;
 			}
 			catch (TaskCanceledException)
 			{

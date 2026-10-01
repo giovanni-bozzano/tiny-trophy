@@ -1,4 +1,7 @@
-using AsyncImageLoader.Loaders;
+using AsyncImageLoader;
+using AsyncImageLoader.Core.Leases;
+using AsyncImageLoader.Core.Pipeline;
+using AsyncImageLoader.Core.Transport;
 using Avalonia.Media.Imaging;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,7 +18,7 @@ namespace TinyTrophy.Infrastructure.Images;
 /// screen, that bounds what the app holds to about a screenful.
 /// </remarks>
 public sealed class CachedImageLoader
-	: BaseWebImageLoader
+	: IAsyncImageLoader
 {
 	private static readonly string CacheDir = Path.Combine(AppPaths.CacheDir, "imagecache");
 
@@ -31,15 +34,32 @@ public sealed class CachedImageLoader
 	// the cached copy already covers HiDPI screens.
 	private readonly int _targetWidth;
 
+	private readonly HttpClient _httpClient = new();
+	private readonly HttpImageTransport _transport;
+
 	public CachedImageLoader(int targetWidth)
 	{
 		_targetWidth = targetWidth;
+		_transport = new HttpImageTransport(_httpClient);
 
 		Directory.CreateDirectory(CacheDir);
 		Task.Run(DeleteStaleFiles);
 	}
 
-	protected override async Task<Bitmap?> LoadAsync(string uri)
+	/// <remarks>
+	/// The returned lease owns the bitmap: the caller takes it over and disposes it along with the control.
+	/// </remarks>
+	public async Task<IImageLease?> LoadAsync(
+		ImageLoadRequest request,
+		CancellationToken cancellationToken = default)
+	{
+		Bitmap? bitmap = await LoadBitmapAsync(request.Source);
+		return bitmap is null ? null : ImageLease.Owned(bitmap);
+	}
+
+	public void Dispose() => _httpClient.Dispose();
+
+	private async Task<Bitmap?> LoadBitmapAsync(string uri)
 	{
 		if (string.IsNullOrWhiteSpace(uri))
 			return null;
@@ -53,7 +73,7 @@ public sealed class CachedImageLoader
 		return await LoadFromGlobalCache(uri);
 	}
 
-	protected override Task<Bitmap?> LoadFromGlobalCache(string uri)
+	private static Task<Bitmap?> LoadFromGlobalCache(string uri)
 	{
 		string cachePath = GetCachePath(uri);
 		if (!File.Exists(cachePath))
@@ -81,7 +101,7 @@ public sealed class CachedImageLoader
 	/// Resizes a downloaded image to <see cref="_targetWidth"/> and stores it at that size, so later
 	/// reads are cheap file reads instead of a decode-and-downscale of a much larger original.
 	/// </summary>
-	protected override Task SaveToGlobalCache(
+	private Task SaveToGlobalCache(
 		string uri,
 		byte[] imageBytes)
 	{
@@ -157,7 +177,20 @@ public sealed class CachedImageLoader
 			}
 		}
 
-		return await LoadDataFromExternalAsync(uri);
+		try
+		{
+			await using Stream? stream = await _transport.GetAsync(new ImageLoadRequest(uri));
+			if (stream is null)
+				return null;
+
+			using MemoryStream buffer = new();
+			await stream.CopyToAsync(buffer);
+			return buffer.ToArray();
+		}
+		catch
+		{
+			return null;
+		}
 	}
 
 	private async Task DownloadAsync(string uri)
