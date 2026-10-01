@@ -113,6 +113,9 @@ public sealed partial class SettingsViewModel
 
 		WatchedDirectories = new ObservableCollection<DirectoryItemViewModel>(s.WatchedDirectories.Select(d => new DirectoryItemViewModel(d)));
 		ProtonPrefixDirectories = new ObservableCollection<DirectoryItemViewModel>(s.ProtonPrefixDirectories.Select(d => new DirectoryItemViewModel(d)));
+
+		if (IsDebugPanelVisible)
+			RefreshDebugPanel();
 	}
 
 	[RelayCommand]

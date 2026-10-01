@@ -86,6 +86,7 @@ public sealed partial class MainViewModel
 	{
 		_steamApi.ClearCache();
 		SteamEmulatorScanner.ClearExpandedPathCache();
+		_gameWatcher?.Restart();
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
 		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
