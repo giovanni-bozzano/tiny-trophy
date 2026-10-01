@@ -122,17 +122,18 @@
 						<TextBlock Text="Language" Foreground="#8f98a0" FontSize="12" />
 						<ComboBox ItemsSource="{Binding AvailableLanguages}" SelectedItem="{Binding Language}" MinWidth="200" />
 					</StackPanel>
+					<StackPanel Spacing="4">
+						<Button Content="Clear Cache" HorizontalAlignment="Left" Command="{Binding ClearCachesCommand}" />
+						<TextBlock Text="Discards cached Steam metadata, then reloads all games." Foreground="#6b7c8d" FontSize="11" TextWrapping="Wrap" />
+					</StackPanel>
 					<HyperlinkButton Content="Show directory debug info" FontSize="11" Foreground="#556072" Padding="0" HorizontalAlignment="Left" Command="{Binding ToggleDebugPanelCommand}" />
 				</StackPanel>
 			</Border>
 			<!-- Directory Debug Panel (hidden by default) -->
 			<Border Classes="panel" Padding="16" IsVisible="{Binding IsDebugPanelVisible}">
 				<StackPanel Spacing="12">
-					<Grid ColumnDefinitions="*,Auto">
-						<TextBlock Grid.Column="0" Classes="section-header" Text="Directory Debug Info" />
-						<Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshDebugPanelCommand}" />
-					</Grid>
-					<TextBlock Text="Every candidate path each enabled watched directory expands to, including Proton/Wine prefix candidates on Linux. Green paths exist on disk, red ones don't." Foreground="#8f98a0" FontSize="12" TextWrapping="Wrap" />
+					<TextBlock Classes="section-header" Text="Directory Debug Info" />
+					<TextBlock Text="Every candidate path each enabled watched directory expands to, including Proton/Wine prefix candidates on Linux. Green paths were detected by the app, red ones weren't. Use Rescan paths to detect them again." Foreground="#8f98a0" FontSize="12" TextWrapping="Wrap" />
 					<ItemsControl ItemsSource="{Binding DebugWatchedDirectories}">
 						<ItemsControl.ItemTemplate>
 							<DataTemplate x:DataType="scanners:WatchedDirectoryDebugInfo">

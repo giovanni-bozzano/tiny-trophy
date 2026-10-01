@@ -22,7 +22,11 @@ public interface IGameWatcherService : IDisposable
 
 	void Start();
 	void Stop();
-	void Restart();
+
+	/// <summary>
+	/// Restarts all watchers and returns the total number of games added and removed.
+	/// </summary>
+	(int Added, int Removed) Restart();
 }
 
 public sealed class GameWatcherService(IEnumerable<IGameWatcher> watchers)
@@ -47,10 +51,13 @@ public sealed class GameWatcherService(IEnumerable<IGameWatcher> watchers)
 			watcher.Stop();
 	}
 
-	public void Restart()
+	public (int Added, int Removed) Restart()
 	{
 		Stop();
 		Start();
+		return (
+			_watchers.Sum(w => w.LastRestartChanges.Added),
+			_watchers.Sum(w => w.LastRestartChanges.Removed));
 	}
 
 	public void Dispose()

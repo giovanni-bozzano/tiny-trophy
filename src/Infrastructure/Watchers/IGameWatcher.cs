@@ -24,6 +24,11 @@ public interface IGameWatcher : IDisposable
 	void Start();
 
 	/// <summary>
+	/// Number of games that appeared and disappeared during the last restart.
+	/// </summary>
+	(int Added, int Removed) LastRestartChanges { get; }
+
+	/// <summary>
 	/// Stops watching and releases file-system resources.
 	/// </summary>
 	void Stop();

@@ -115,6 +115,6 @@ public sealed class SettingsService
 		Settings.WatchedDirectories = originalWatchedDirectories;
 		Settings.ProtonPrefixDirectories = originalProtonPrefixDirectories;
 
-		SteamEmulatorScanner.ClearExpandedPathCache();
+		SteamEmulatorScanner.ClearResolvedDirectoriesCache();
 	}
 }

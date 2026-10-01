@@ -12,6 +12,8 @@ public abstract class GameWatcherBase : IGameWatcher
 {
 	private readonly List<FileSystemWatcher> _watchers = [];
 	private readonly ConcurrentDictionary<string, HashSet<string>> _knownUnlocks = new();
+	private readonly HashSet<string> _knownGames = new(StringComparer.OrdinalIgnoreCase);
+	private bool _hasStarted;
 	private readonly ConcurrentDictionary<string, CancellationTokenSource> _debounceTimers = new();
 
 	// Per-game locks with the number of detections using or waiting for them, removed once unused
@@ -35,9 +37,29 @@ public abstract class GameWatcherBase : IGameWatcher
 	public void Start()
 	{
 		Stop();
+
+		HashSet<string> previousGames = new(_knownGames, StringComparer.OrdinalIgnoreCase);
+		_knownGames.Clear();
+		_knownUnlocks.Clear();
+
 		InitializeKnownState();
 		SetupFileWatchers();
+
+		// On a restart, report games that appeared or disappeared so they are refreshed individually
+		LastRestartChanges = (0, 0);
+		if (_hasStarted)
+		{
+			List<string> added = [.. _knownGames.Where(k => !previousGames.Contains(k))];
+			List<string> removed = [.. previousGames.Where(k => !_knownGames.Contains(k))];
+			LastRestartChanges = (added.Count, removed.Count);
+
+			foreach (string key in added.Concat(removed))
+				AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
+		}
+		_hasStarted = true;
 	}
+
+	public (int Added, int Removed) LastRestartChanges { get; private set; }
 
 	public void Stop()
 	{
@@ -104,6 +126,7 @@ public abstract class GameWatcherBase : IGameWatcher
 		string key,
 		HashSet<string> unlockedIds)
 	{
+		_knownGames.Add(key);
 		if (unlockedIds.Count > 0)
 			_knownUnlocks[key] = unlockedIds;
 	}

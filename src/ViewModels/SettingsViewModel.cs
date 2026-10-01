@@ -205,16 +205,15 @@ public sealed partial class SettingsViewModel
 
 		await _settingsService.SaveAsync();
 
-		if (!string.Equals(SteamApiKey, _originalApiKey, StringComparison.Ordinal))
-		{
-			_originalApiKey = SteamApiKey;
-			await _mainViewModel.RefreshMetadataCommand.ExecuteAsync(null);
-		}
-		else
-		{
-			await _mainViewModel.ReloadWatchedFoldersAsync();
-		}
+		bool apiKeyChanged = !string.Equals(SteamApiKey, _originalApiKey, StringComparison.Ordinal);
+		_originalApiKey = SteamApiKey;
+
+		await _mainViewModel.ApplySettingsAsync(apiKeyChanged);
 	}
+
+	[RelayCommand]
+	private Task ClearCachesAsync() =>
+		_mainViewModel.ClearCachesCommand.ExecuteAsync(null);
 
 	[RelayCommand]
 	private void ResetDefaults()
@@ -255,8 +254,8 @@ public sealed partial class SettingsViewModel
 
 	/// <summary>
 	/// Toggles the hidden diagnostics panel that shows every candidate path each watched directory
-	/// expands to (including Proton prefix candidates on Linux), refreshing it against the currently
-	/// unsaved in-memory directory lists whenever it's shown.
+	/// expands to (including Proton prefix candidates on Linux), mirroring the paths currently detected
+	/// and used by the app.
 	/// </summary>
 	[RelayCommand]
 	private void ToggleDebugPanel()
@@ -266,17 +265,10 @@ public sealed partial class SettingsViewModel
 			RefreshDebugPanel();
 	}
 
-	[RelayCommand]
 	private void RefreshDebugPanel()
 	{
-		AppSettings snapshot = new()
-		{
-			WatchedDirectories = [.. WatchedDirectories.Select(d => d.ToConfig())],
-			ProtonPrefixDirectories = [.. ProtonPrefixDirectories.Select(d => d.ToConfig())]
-		};
-
 		DebugWatchedDirectories = new ObservableCollection<WatchedDirectoryDebugInfo>(
-			SteamEmulatorScanner.DebugExpandAllWatchedDirectories(snapshot));
+			SteamEmulatorScanner.GetWatchedDirectoryDebugInfo(_settingsService.Settings));
 	}
 }
 

@@ -14,6 +14,8 @@ public sealed partial class MainViewModel
 	// Holds the view that was active while suspended, so it can be handed back on resume
 	private object? _suspendedView;
 
+	private CancellationTokenSource? _rescanResultCts;
+
 	[ObservableProperty]
 	public partial object? CurrentView { get; set; }
 
@@ -28,6 +30,12 @@ public sealed partial class MainViewModel
 
 	[ObservableProperty]
 	public partial bool IsBusy { get; private set; }
+
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(IsRescanResultVisible))]
+	public partial string? RescanResult { get; private set; }
+
+	public bool IsRescanResultVisible => RescanResult is not null;
 
 	public HomeViewModel HomeViewModel { get; }
 	public SettingsViewModel SettingsViewModel { get; }
@@ -60,15 +68,11 @@ public sealed partial class MainViewModel
 	public void SetGameWatcher(IGameWatcherService watcher) => _gameWatcher = watcher;
 
 	/// <summary>
-	/// Restarts file watchers and reloads the game list. Called after watched folder settings change.
+	/// Applies saved settings: always rescans paths, since watched folders may have changed, and also
+	/// clears the Steam API caches when the API key changed.
 	/// </summary>
-	public async Task ReloadWatchedFoldersAsync()
-	{
-		_gameWatcher?.Restart();
-		CurrentView = HomeViewModel;
-		CanGoBack = false;
-		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
-	}
+	public Task ApplySettingsAsync(bool apiKeyChanged) =>
+		ReloadAsync(rescanPaths: true, clearCaches: apiKeyChanged);
 
 	public void ShowSetup(Action<string?, string?> onComplete)
 	{
@@ -82,11 +86,57 @@ public sealed partial class MainViewModel
 	}
 
 	[RelayCommand]
-	private async Task RefreshMetadataAsync()
+	private void RescanPaths()
 	{
-		_steamApi.ClearCache();
-		SteamEmulatorScanner.ClearExpandedPathCache();
-		_gameWatcher?.Restart();
+		// The restarted watchers report added or removed games, which are refreshed individually
+		SteamEmulatorScanner.ClearResolvedDirectoriesCache();
+		if (_gameWatcher is null)
+			return;
+
+		(int added, int removed) = _gameWatcher.Restart();
+		RescanResult = added == 0 && removed == 0
+			? "No games added or removed"
+			: $"{added} game{(added == 1 ? "" : "s")} added, {removed} removed";
+		_ = HideRescanResultAsync();
+	}
+
+	private async Task HideRescanResultAsync()
+	{
+		_rescanResultCts?.Cancel();
+		CancellationTokenSource cts = new();
+		_rescanResultCts = cts;
+		try
+		{
+			await Task.Delay(2500, cts.Token);
+			RescanResult = null;
+		}
+		catch (TaskCanceledException)
+		{
+			// A newer rescan superseded this reset
+		}
+	}
+
+	[RelayCommand]
+	private Task ClearCachesAsync() =>
+		ReloadAsync(rescanPaths: false, clearCaches: true);
+
+	/// <summary>
+	/// Optionally re-resolves watched folders (restarting the file watchers) and clears the Steam API
+	/// caches, then navigates home and reloads the game list.
+	/// </summary>
+	private async Task ReloadAsync(
+		bool rescanPaths,
+		bool clearCaches)
+	{
+		if (clearCaches)
+			_steamApi.ClearCache();
+
+		if (rescanPaths)
+		{
+			SteamEmulatorScanner.ClearResolvedDirectoriesCache();
+			_gameWatcher?.Restart();
+		}
+
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
 		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
