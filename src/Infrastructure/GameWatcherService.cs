@@ -24,25 +24,29 @@ public interface IGameWatcherService : IDisposable
 	void Stop();
 
 	/// <summary>
-	/// Restarts all watchers and returns the total number of games added and removed.
+	/// Restarts all watchers and returns the total number of games added and removed. When
+	/// <paramref name="reportChanges"/> is false, those games are not refreshed individually.
 	/// </summary>
-	(int Added, int Removed) Restart();
+	(int Added, int Removed) Restart(bool reportChanges = true);
 }
 
 public sealed class GameWatcherService(IEnumerable<IGameWatcher> watchers)
 	: IGameWatcherService
 {
 	private readonly IGameWatcher[] _watchers = [.. watchers];
+	private readonly Lock _restartLock = new();
 	private bool _subscribed;
 
 	public event EventHandler<AchievementUnlockedEventArgs>? AchievementUnlocked;
 	public event EventHandler<GameChangedEventArgs>? AchievementsChanged;
 
-	public void Start()
+	public void Start() => Start(reportChanges: true);
+
+	private void Start(bool reportChanges)
 	{
 		EnsureSubscriptions();
 		foreach (IGameWatcher watcher in _watchers)
-			watcher.Start();
+			watcher.Start(reportChanges);
 	}
 
 	public void Stop()
@@ -51,13 +55,17 @@ public sealed class GameWatcherService(IEnumerable<IGameWatcher> watchers)
 			watcher.Stop();
 	}
 
-	public (int Added, int Removed) Restart()
+	public (int Added, int Removed) Restart(bool reportChanges = true)
 	{
-		Stop();
-		Start();
-		return (
-			_watchers.Sum(w => w.LastRestartChanges.Added),
-			_watchers.Sum(w => w.LastRestartChanges.Removed));
+		// Restarts run on background threads, so serialize them to avoid interleaving
+		lock (_restartLock)
+		{
+			Stop();
+			Start(reportChanges);
+			return (
+				_watchers.Sum(w => w.LastRestartChanges.Added),
+				_watchers.Sum(w => w.LastRestartChanges.Removed));
+		}
 	}
 
 	public void Dispose()

@@ -124,6 +124,10 @@ public sealed class AchievementService(
 
 	public UserProfile GetUserProfile(IReadOnlyList<Game> games)
 	{
+		// Only count games the list actually shows
+		if (settings.Settings.Achievements.HideZeroPercent)
+			games = [.. games.Where(g => g.UnlockedCount > 0)];
+
 		List<Achievement> allAchievements = [.. games.SelectMany(g => g.Achievements).Where(a => a.IsUnlocked)];
 		int totalGames = games.Count;
 		int totalAchievements = allAchievements.Count;

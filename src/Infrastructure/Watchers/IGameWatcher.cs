@@ -19,9 +19,10 @@ public interface IGameWatcher : IDisposable
 	event EventHandler<GameChangedEventArgs>? AchievementsChanged;
 
 	/// <summary>
-	/// Starts watching for achievement changes.
+	/// Starts watching for achievement changes. On a restart, games that appeared or disappeared are
+	/// reported through <see cref="AchievementsChanged"/> unless <paramref name="reportChanges"/> is false.
 	/// </summary>
-	void Start();
+	void Start(bool reportChanges = true);
 
 	/// <summary>
 	/// Number of games that appeared and disappeared during the last restart.

@@ -17,6 +17,7 @@ public sealed class SteamEmulatorWatcher(
 	protected override void InitializeKnownState()
 	{
 		IReadOnlyList<string> resolvedDirectories = SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings);
+		HashSet<string> appIds = new(StringComparer.OrdinalIgnoreCase);
 
 		foreach (string resolved in resolvedDirectories)
 		{
@@ -25,18 +26,23 @@ public sealed class SteamEmulatorWatcher(
 				foreach (string appDir in Directory.EnumerateDirectories(resolved))
 				{
 					string appId = Path.GetFileName(appDir);
-					if (!AchievementFileParser.IsAppId(appId))
-						continue;
-
-					HashSet<string> unlocked = AchievementFileParser.ParseFromDirectory(appDir)
-						.Where(a => a.IsUnlocked)
-						.Select(a => a.Id)
-						.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-					SetKnownUnlocks(appId, unlocked);
+					if (AchievementFileParser.IsAppId(appId))
+						appIds.Add(appId);
 				}
 			}
 			catch { }
+		}
+
+		foreach (string appId in appIds)
+		{
+			// Same definition of a game as SteamEmulatorScanner: at least one folder with achievements
+			List<Achievement>? achievements = ParseAllFolders(appId);
+			if (achievements is null)
+				continue;
+
+			SetKnownUnlocks(appId, achievements
+				.Select(a => a.Id)
+				.ToHashSet(StringComparer.OrdinalIgnoreCase));
 		}
 	}
 
@@ -86,12 +92,16 @@ public sealed class SteamEmulatorWatcher(
 	{
 		try
 		{
-			// Find the actual directory for this appId across all watched folders
-			string? appDir = FindAppDirectory(key);
-			if (appDir is null)
+			// Merge every watched folder holding this app ID, so the changed copy is never missed
+			List<Achievement>? currentUnlocked = ParseAllFolders(key);
+			if (currentUnlocked is null)
+			{
+				MarkGameRemoved(key);
 				return;
+			}
 
-			List<Achievement> currentUnlocked = [.. AchievementFileParser.ParseFromDirectory(appDir).Where(a => a.IsUnlocked)];
+			MarkGamePresent(key);
+
 			List<Achievement> newAchievements = DiffAndUpdate(key, currentUnlocked);
 
 			if (newAchievements.Count == 0)
@@ -162,17 +172,35 @@ public sealed class SteamEmulatorWatcher(
 		ach.GlobalPercentage = schema.GlobalPercentage;
 	}
 
-	private string? FindAppDirectory(string appId)
+	/// <summary>
+	/// Returns the unlocked achievements of an app ID merged across all watched folders, or null when
+	/// no folder contains any achievement (the scanner would not list the game).
+	/// </summary>
+	private List<Achievement>? ParseAllFolders(string appId)
 	{
-		IReadOnlyList<string> resolvedDirectories = SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings);
+		bool found = false;
+		Dictionary<string, Achievement> unlocked = new(StringComparer.OrdinalIgnoreCase);
 
-		foreach (string resolved in resolvedDirectories)
+		foreach (string resolved in SteamEmulatorScanner.GetEnabledResolvedDirectories(settings.Settings))
 		{
-			string candidate = Path.Combine(resolved, appId);
-			if (Directory.Exists(candidate))
-				return candidate;
+			try
+			{
+				string candidate = Path.Combine(resolved, appId);
+				if (!Directory.Exists(candidate))
+					continue;
+
+				List<Achievement> achievements = AchievementFileParser.ParseFromDirectory(candidate);
+				if (achievements.Count == 0)
+					continue;
+
+				found = true;
+				foreach (Achievement ach in achievements.Where(a => a.IsUnlocked))
+					unlocked.TryAdd(ach.Id, ach);
+			}
+			catch { }
 		}
-		return null;
+
+		return found ? [.. unlocked.Values] : null;
 	}
 
 	private static string? FindAppIdDirectory(string filePath)

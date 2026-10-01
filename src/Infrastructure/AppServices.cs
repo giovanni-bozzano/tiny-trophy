@@ -58,7 +58,7 @@ public sealed class AppServices
 		List<IGameWatcher> watchers =
 		[
 			new SteamEmulatorWatcher(Settings, SteamApi),
-			new ShadPs4Watcher()
+			new ShadPs4Watcher(Settings)
 		];
 		GameWatcher = new GameWatcherService(watchers);
 		MainViewModel.SetGameWatcher(GameWatcher);

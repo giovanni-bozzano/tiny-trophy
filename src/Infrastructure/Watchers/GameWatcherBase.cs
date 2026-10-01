@@ -12,7 +12,7 @@ public abstract class GameWatcherBase : IGameWatcher
 {
 	private readonly List<FileSystemWatcher> _watchers = [];
 	private readonly ConcurrentDictionary<string, HashSet<string>> _knownUnlocks = new();
-	private readonly HashSet<string> _knownGames = new(StringComparer.OrdinalIgnoreCase);
+	private readonly ConcurrentDictionary<string, byte> _knownGames = new(StringComparer.OrdinalIgnoreCase);
 	private bool _hasStarted;
 	private readonly ConcurrentDictionary<string, CancellationTokenSource> _debounceTimers = new();
 
@@ -34,11 +34,11 @@ public abstract class GameWatcherBase : IGameWatcher
 	/// </summary>
 	protected abstract AchievementSource Source { get; }
 
-	public void Start()
+	public void Start(bool reportChanges = true)
 	{
 		Stop();
 
-		HashSet<string> previousGames = new(_knownGames, StringComparer.OrdinalIgnoreCase);
+		HashSet<string> previousGames = new(_knownGames.Keys, StringComparer.OrdinalIgnoreCase);
 		_knownGames.Clear();
 		_knownUnlocks.Clear();
 
@@ -49,11 +49,11 @@ public abstract class GameWatcherBase : IGameWatcher
 		LastRestartChanges = (0, 0);
 		if (_hasStarted)
 		{
-			List<string> added = [.. _knownGames.Where(k => !previousGames.Contains(k))];
-			List<string> removed = [.. previousGames.Where(k => !_knownGames.Contains(k))];
+			List<string> added = [.. _knownGames.Keys.Where(k => !previousGames.Contains(k))];
+			List<string> removed = [.. previousGames.Where(k => !_knownGames.ContainsKey(k))];
 			LastRestartChanges = (added.Count, removed.Count);
 
-			foreach (string key in added.Concat(removed))
+			foreach (string key in reportChanges ? added.Concat(removed) : [])
 				AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
 		}
 		_hasStarted = true;
@@ -126,9 +126,30 @@ public abstract class GameWatcherBase : IGameWatcher
 		string key,
 		HashSet<string> unlockedIds)
 	{
-		_knownGames.Add(key);
+		_knownGames[key] = 0;
 		if (unlockedIds.Count > 0)
 			_knownUnlocks[key] = unlockedIds;
+	}
+
+	/// <summary>
+	/// Records that a game was found by a live detection, reporting it if it is new.
+	/// </summary>
+	protected void MarkGamePresent(string key)
+	{
+		if (!IsStaleRun() && _knownGames.TryAdd(key, 0))
+			AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
+	}
+
+	/// <summary>
+	/// Records that a game disappeared during a live detection, reporting it if it was known.
+	/// </summary>
+	protected void MarkGameRemoved(string key)
+	{
+		if (IsStaleRun() || !_knownGames.TryRemove(key, out _))
+			return;
+
+		_knownUnlocks.TryRemove(key, out _);
+		AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
 	}
 
 	/// <summary>

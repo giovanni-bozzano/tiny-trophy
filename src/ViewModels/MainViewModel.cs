@@ -86,14 +86,15 @@ public sealed partial class MainViewModel
 	}
 
 	[RelayCommand]
-	private void RescanPaths()
+	private async Task RescanPathsAsync()
 	{
 		// The restarted watchers report added or removed games, which are refreshed individually
 		SteamEmulatorScanner.ClearResolvedDirectoriesCache();
-		if (_gameWatcher is null)
+		if (_gameWatcher is not IGameWatcherService watcher)
 			return;
 
-		(int added, int removed) = _gameWatcher.Restart();
+		// Restarting re-reads every game's files, so keep it off the UI thread
+		(int added, int removed) = await Task.Run(() => watcher.Restart());
 		RescanResult = added == 0 && removed == 0
 			? "No games added or removed"
 			: $"{added} game{(added == 1 ? "" : "s")} added, {removed} removed";
@@ -103,12 +104,15 @@ public sealed partial class MainViewModel
 	private async Task HideRescanResultAsync()
 	{
 		_rescanResultCts?.Cancel();
+		_rescanResultCts?.Dispose();
 		CancellationTokenSource cts = new();
 		_rescanResultCts = cts;
 		try
 		{
 			await Task.Delay(2500, cts.Token);
 			RescanResult = null;
+			_rescanResultCts = null;
+			cts.Dispose();
 		}
 		catch (TaskCanceledException)
 		{
@@ -131,10 +135,11 @@ public sealed partial class MainViewModel
 		if (clearCaches)
 			_steamApi.ClearCache();
 
-		if (rescanPaths)
+		if (rescanPaths && _gameWatcher is IGameWatcherService watcher)
 		{
-			SteamEmulatorScanner.ClearResolvedDirectoriesCache();
-			_gameWatcher?.Restart();
+			// The full load below covers added or removed games, so the watchers needn't report them.
+			// Saving settings already cleared the resolved directories cache.
+			await Task.Run(() => watcher.Restart(reportChanges: false));
 		}
 
 		CurrentView = HomeViewModel;

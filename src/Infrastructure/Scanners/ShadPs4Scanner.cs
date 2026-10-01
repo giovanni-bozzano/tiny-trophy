@@ -206,6 +206,15 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 		return Directory.Exists(homeDir) ? homeDir : null;
 	}
 
+	/// <summary>
+	/// Returns the ShadPS4 trophy directory path (one NPWR folder per game), or null if it doesn't exist.
+	/// </summary>
+	public static string? GetShadPs4TrophyDir()
+	{
+		string trophyDir = Path.Combine(ShadPs4Root, "trophy");
+		return Directory.Exists(trophyDir) ? trophyDir : null;
+	}
+
 	private static Dictionary<string, List<string>> GetProgressFilesByNpwr()
 	{
 		Dictionary<string, List<string>> result = [];
