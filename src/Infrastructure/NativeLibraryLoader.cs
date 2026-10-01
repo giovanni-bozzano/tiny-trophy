@@ -25,6 +25,15 @@ public static class NativeLibraryLoader
 	private const string ResourcePrefix = "TinyTrophy.Native.";
 
 	private static bool s_initialized;
+	private static readonly Dictionary<string, nint> s_handles = new(StringComparer.OrdinalIgnoreCase);
+
+	private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+	{
+		string name = Path.GetFileNameWithoutExtension(libraryName);
+		if (s_handles.TryGetValue(name, out nint handle) || s_handles.TryGetValue("lib" + name, out handle))
+			return handle;
+		return 0;
+	}
 
 	/// <summary>
 	/// Extracts any embedded native libraries and loads them into the process. Must run before the
@@ -53,8 +62,12 @@ public static class NativeLibraryLoader
 			string targetPath = Path.Combine(targetDir, fileName);
 
 			Extract(assembly, resourceName, targetPath);
-			NativeLibrary.Load(targetPath);
+			s_handles[Path.GetFileNameWithoutExtension(fileName)] = NativeLibrary.Load(targetPath);
 		}
+
+		// On Linux/macOS a library loaded by full path is not found again by bare name, so resolve explicitly.
+		NativeLibrary.SetDllImportResolver(typeof(SkiaSharp.SKImageInfo).Assembly, Resolve);
+		NativeLibrary.SetDllImportResolver(typeof(HarfBuzzSharp.Blob).Assembly, Resolve);
 
 		RemoveStaleVersions(rootDir, targetDir);
 	}
