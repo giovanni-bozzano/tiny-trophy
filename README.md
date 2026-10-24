@@ -15,7 +15,7 @@ A lightweight achievement tracker that monitors your games across multiple platf
 
 - **Linux support** — Runs natively on Linux and transparently resolves Steam emulator achievement folders inside Proton/Wine prefixes, with customizable locations
 - **Multi-platform support** — Track achievements from Steam, Steam emulators, and PS4 games via ShadPS4
-- **Truly lightweight** — Uses ~100 MB of RAM (~10 MB while in background) with a native UI that won't slow down your system while gaming
+- **Truly lightweight** — Uses ~50 MB of RAM (~10 MB while in background) with a native UI that won't slow down your system while gaming
 - **Single portable executable** — No installer, no runtime to pre-install, no dependencies to manage
 - **Real-time notifications** — Get desktop popups (with optional sound) the moment you unlock an achievement
 - **Live monitoring** — Watches your achievement folders for changes so progress is always up to date
