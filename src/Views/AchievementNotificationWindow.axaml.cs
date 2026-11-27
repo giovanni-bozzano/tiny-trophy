@@ -17,12 +17,14 @@ public partial class AchievementNotificationWindow
 	private const int ScreenMargin = 12;
 	private const int StackGap = 4;
 	private const int MaxVisible = 3;
+	private const int MaxQueued = 10;
 	private static readonly TimeSpan SoundThrottle = TimeSpan.FromSeconds(2);
 
-	// Active notifications ordered bottom-to-top (index 0 = lowest on screen).
+	// Active notifications ordered oldest to newest (index 0 is therefore the topmost on screen).
 	private static readonly List<AchievementNotificationWindow> s_activeNotifications = [];
 	private static readonly Queue<Achievement> s_pendingQueue = new();
 	private static DateTime s_lastSoundPlayed = DateTime.MinValue;
+	private static bool s_shuttingDown;
 
 	/// <summary>
 	/// Raised once no notification is showing or queued anymore. Used to release the memory a
@@ -32,6 +34,9 @@ public partial class AchievementNotificationWindow
 
 	private static readonly HttpClient s_httpClient = new() { Timeout = TimeSpan.FromSeconds(5) };
 	private static byte[]? s_notificationSoundData;
+
+	// Set on the UI thread when the window closes, so a late icon load knows not to assign to it
+	private bool _closed;
 
 	public AchievementNotificationWindow()
 	{
@@ -57,6 +62,9 @@ public partial class AchievementNotificationWindow
 		Achievement achievement,
 		bool playSound = false)
 	{
+		if (s_shuttingDown)
+			return;
+
 		if (playSound && DateTime.UtcNow - s_lastSoundPlayed > SoundThrottle)
 		{
 			s_lastSoundPlayed = DateTime.UtcNow;
@@ -68,10 +76,12 @@ public partial class AchievementNotificationWindow
 			AchievementNotificationWindow popup = new(achievement);
 			popup.Show();
 		}
-		else
+		else if (s_pendingQueue.Count < MaxQueued)
 		{
 			s_pendingQueue.Enqueue(achievement);
 		}
+		// Beyond the cap the achievement is still listed in the app; showing a minutes-long backlog of
+		// popups for a mass unlock is worse than dropping the extra notifications.
 	}
 
 	protected override void OnOpened(EventArgs e)
@@ -87,12 +97,17 @@ public partial class AchievementNotificationWindow
 
 	protected override void OnClosed(EventArgs e)
 	{
+		_closed = true;
+
 		(AchievementIcon.Source as Bitmap)?.Dispose();
 		AchievementIcon.Source = null;
 
 		s_activeNotifications.Remove(this);
 		RepositionAll();
 		base.OnClosed(e);
+
+		if (s_shuttingDown)
+			return;
 
 		// Show next queued notification if any
 		if (s_pendingQueue.Count > 0 && s_activeNotifications.Count < MaxVisible)
@@ -105,6 +120,19 @@ public partial class AchievementNotificationWindow
 		{
 			AllNotificationsClosed?.Invoke();
 		}
+	}
+
+	/// <summary>
+	/// Stops showing notifications and closes the ones on screen. Called before shutdown so a queued popup
+	/// cannot open a new window while the application is closing.
+	/// </summary>
+	public static void Shutdown()
+	{
+		s_shuttingDown = true;
+		s_pendingQueue.Clear();
+
+		foreach (AchievementNotificationWindow window in s_activeNotifications.ToArray())
+			window.Close();
 	}
 
 	/// <summary>
@@ -123,23 +151,18 @@ public partial class AchievementNotificationWindow
 		PixelRect workArea = screen.WorkingArea;
 		double scaling = screen.Scaling;
 
-		double anchorY = workArea.Y / scaling + workArea.Height / scaling - ScreenMargin;
-
-		for (int i = 0; i < s_activeNotifications.Count; i++)
+				// Walk from the newest notification, which sits at the bottom, up to the oldest
+		double y = workArea.Y / scaling + workArea.Height / scaling - ScreenMargin;
+		for (int i = s_activeNotifications.Count - 1; i >= 0; i--)
 		{
 			AchievementNotificationWindow win = s_activeNotifications[i];
-			// Stack upward: each window sits above the previous one.
-			anchorY -= win.Height + (i > 0 ? StackGap : 0);
-		}
+			y -= win.Height;
 
-		// Now anchorY is the top of the topmost notification. Walk forward to assign positions.
-		double y = anchorY;
-		foreach (AchievementNotificationWindow win in s_activeNotifications)
-		{
-			// Recalculate x per-window in case widths ever differ.
+			// Recalculated per window in case widths ever differ
 			double x = workArea.X / scaling + workArea.Width / scaling - win.Width - ScreenMargin;
 			win.Position = new PixelPoint((int)(x * scaling), (int)(y * scaling));
-			y += win.Height + StackGap;
+
+			y -= StackGap;
 		}
 	}
 
@@ -191,7 +214,19 @@ public partial class AchievementNotificationWindow
 
 			using MemoryStream stream = new(bytes);
 			Bitmap bitmap = new(stream);
-			Dispatcher.UIThread.Post(() => AchievementIcon.Source = bitmap);
+			Dispatcher.UIThread.Post(() =>
+			{
+				// The window may have closed while the icon was downloading, and nothing else would ever
+				// dispose this bitmap
+				if (_closed)
+				{
+					bitmap.Dispose();
+					return;
+				}
+
+				(AchievementIcon.Source as Bitmap)?.Dispose();
+				AchievementIcon.Source = bitmap;
+			});
 		}
 		catch
 		{

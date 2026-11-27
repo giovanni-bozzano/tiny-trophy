@@ -31,9 +31,6 @@ public partial class App
 
 		// Delete leftover files from a previous update
 		UpdateService.CleanupPreviousUpdate();
-
-		// Silently delete the updated flag written by the previous version before restarting
-		UpdateService.ConsumeUpdatedFlag();
 	}
 
 	public override void OnFrameworkInitializationCompleted()
@@ -51,6 +48,12 @@ public partial class App
 			_mainWindow = new MainWindow(mainViewModel, settingsService);
 			_mainWindow.ExitRequested += (_, _) => ExitApp();
 
+			// A flag means this is the first launch after an update. It is consumed here, rather than during
+			// initialization, so the version the user is now running can actually be reported.
+			string? updatedVersion = UpdateService.ConsumeUpdatedFlag();
+			if (updatedVersion is not null)
+				ShowUpdatedNotice(mainViewModel, updatedVersion);
+
 			// Set up system tray icon
 			SetupTrayIcon();
 
@@ -64,6 +67,7 @@ public partial class App
 
 			desktop.ShutdownRequested += (_, _) =>
 			{
+				AchievementNotificationWindow.Shutdown();
 				_services?.Dispose();
 				_trayIcon?.Dispose();
 				ImageLoaders.DisposeAll();
@@ -150,7 +154,9 @@ public partial class App
 			});
 		};
 
-		gameWatcher.Start();
+		// Starting a watcher re-reads every achievement file to seed its known state, so it is kept off the
+		// UI thread. Games that appear or disappear are reported through AchievementsChanged.
+		_ = Task.Run(() => gameWatcher.Start());
 
 		_ = LoadGamesAndTrimIfNeededAsync(mainViewModel, settingsService);
 	}
@@ -159,7 +165,7 @@ public partial class App
 		MainViewModel mainViewModel,
 		SettingsService settingsService)
 	{
-		await mainViewModel.HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+		await mainViewModel.HomeViewModel.ReloadGamesAsync();
 
 		// Games/images were just loaded into memory to keep data ready; if the window was never
 		// actually shown (started minimized), trim that memory back off now that the initial
@@ -325,6 +331,7 @@ public partial class App
 		{
 			_mainWindow?.AllowClose = true;
 
+			AchievementNotificationWindow.Shutdown();
 			_services?.Dispose();
 			_trayIcon?.Dispose();
 			ImageLoaders.DisposeAll();
@@ -332,6 +339,20 @@ public partial class App
 			if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
 				desktop.Shutdown();
 		});
+	}
+
+	/// <summary>
+	/// Announces the version this launch updated to, and clears the banner on its own.
+	/// </summary>
+	private static void ShowUpdatedNotice(
+		MainViewModel mainViewModel,
+		string version)
+	{
+		mainViewModel.InfoMessage = $"Updated to version {version.TrimStart('v', 'V')}.";
+
+		_ = Task.Delay(TimeSpan.FromSeconds(12)).ContinueWith(
+			_ => Dispatcher.UIThread.Post(() => mainViewModel.InfoMessage = string.Empty),
+			TaskScheduler.Default);
 	}
 
 	private static async Task CheckForUpdateAsync(Window owner)

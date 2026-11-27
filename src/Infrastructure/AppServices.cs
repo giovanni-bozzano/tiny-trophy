@@ -18,6 +18,8 @@ public sealed class AppServices
 	/// <summary>
 	/// Application settings, already loaded from disk.
 	/// </summary>
+	private bool _disposed;
+
 	public SettingsService Settings { get; }
 
 	public SteamApiService SteamApi { get; }
@@ -66,6 +68,11 @@ public sealed class AppServices
 
 	public void Dispose()
 	{
+		// Shutdown can be requested twice (window exit and application shutdown), and both dispose
+		if (_disposed)
+			return;
+		_disposed = true;
+
 		GameWatcher.Dispose();
 		SteamApi.Dispose();
 	}

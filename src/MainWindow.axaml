@@ -36,7 +36,13 @@
 		<!-- Warnings -->
 		<StackPanel Grid.Row="1">
 			<Border Background="#5e1a1a" Padding="12,8" IsVisible="{Binding ApiKeyWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-				<TextBlock Text="{Binding ApiKeyWarning}" Foreground="#ff6b6b" FontSize="12" TextWrapping="Wrap" HorizontalAlignment="Center" />
+				<Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+					<TextBlock Text="{Binding ApiKeyWarning}" Foreground="#ff6b6b" FontSize="12" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+					<Button Grid.Column="1" Content="Retry" Command="{Binding RetrySteamCommand}" IsVisible="{Binding CanRetrySteam}" FontSize="12" Padding="10,2" VerticalAlignment="Center" />
+				</Grid>
+			</Border>
+			<Border Background="#14324a" Padding="12,8" IsVisible="{Binding InfoMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+				<TextBlock Text="{Binding InfoMessage}" Foreground="#66c0f4" FontSize="12" TextWrapping="Wrap" HorizontalAlignment="Center" />
 			</Border>
 		</StackPanel>
 		<!-- Content Area -->
