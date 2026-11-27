@@ -30,8 +30,9 @@
 - NativeAOT is the shipping runtime: no reflection-only APIs, no runtime code generation, and any
   new serialized type is registered in `AppJsonContext`.
 - Commit every completed logical change separately after validation; do not batch unrelated work or
-  include pre-existing user changes. Never push automatically. No AI attribution, co-author
-  trailers or "generated with" lines in commit messages.
+  include pre-existing user changes. Never push automatically. Do not bump the version unless the
+  user explicitly asks for a version bump. No AI attribution, co-author trailers or "generated
+  with" lines in commit messages.
 - No absolute paths, drive letters, machine names or user accounts in code, scripts or docs; take
   paths from the project root.
 - Verification leaves nothing behind: no temporary sample data, forced settings, extra logging, or
