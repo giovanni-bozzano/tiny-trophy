@@ -4,5 +4,9 @@
 		<File Path=".gitignore" />
 		<File Path="README.md" />
 	</Folder>
+	<Folder Name="/src/" />
+	<Folder Name="/tests/">
+		<Project Path="tests/TinyTrophy.Tests.csproj" />
+	</Folder>
 	<Project Path="src\TinyTrophy.csproj" />
 </Solution>
