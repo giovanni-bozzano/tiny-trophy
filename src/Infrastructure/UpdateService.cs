@@ -12,11 +12,17 @@ public static class UpdateService
 
 	private static readonly string UpdatedFlagPath = Path.Combine(AppPaths.DataDir, "updated.flag");
 
+	private const string WindowsAssetSuffix = "windows_amd64.exe";
+	private const string LinuxAssetSuffix = "linux_amd64";
+
 	/// <summary>
 	/// Writes a flag file so the next launch knows an update just happened.
 	/// </summary>
 	public static void WriteUpdatedFlag(string newVersion)
 	{
+		if (string.IsNullOrWhiteSpace(newVersion))
+			return;
+
 		try
 		{
 			Directory.CreateDirectory(AppPaths.DataDir);
@@ -37,7 +43,7 @@ public static class UpdateService
 
 			string version = File.ReadAllText(UpdatedFlagPath).Trim();
 			File.Delete(UpdatedFlagPath);
-			return string.IsNullOrWhiteSpace(version) ? "a new version" : version;
+			return string.IsNullOrWhiteSpace(version) ? null : version;
 		}
 		catch
 		{
@@ -45,9 +51,23 @@ public static class UpdateService
 		}
 	}
 
+	/// <summary>
+	/// Used for the small release metadata request only.
+	/// </summary>
 	private static readonly HttpClient s_http = new()
 	{
 		Timeout = TimeSpan.FromSeconds(10),
+		DefaultRequestHeaders = { { "User-Agent", "TinyTrophy" } }
+	};
+
+	/// <summary>
+	/// Download-only client: a <see cref="HttpClient.Timeout"/> covers reading the response body, so the
+	/// ten second timeout above would abort any transfer slower than that. The transfer is bounded by the
+	/// caller's cancellation token instead.
+	/// </summary>
+	private static readonly HttpClient s_downloadHttp = new()
+	{
+		Timeout = Timeout.InfiniteTimeSpan,
 		DefaultRequestHeaders = { { "User-Agent", "TinyTrophy" } }
 	};
 
@@ -97,7 +117,7 @@ public static class UpdateService
 			?? throw new InvalidOperationException("Cannot determine current executable path.");
 		string tempPath = binaryPath + ".update";
 
-		using HttpResponseMessage response = await s_http.GetAsync(asset.BrowserDownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+		using HttpResponseMessage response = await s_downloadHttp.GetAsync(asset.BrowserDownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
 		response.EnsureSuccessStatusCode();
 
 		long totalBytes = response.Content.Headers.ContentLength ?? asset.Size;
@@ -117,37 +137,108 @@ public static class UpdateService
 		}
 
 		progress.Report(1.0);
+
+		// An HTTP download has no file mode: on Unix the new file is created 0644, so after the swap it
+		// would replace the running binary but fail to relaunch with a permission error.
+		if (!OperatingSystem.IsWindows())
+		{
+			File.SetUnixFileMode(
+				tempPath,
+				UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+				UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+				UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+		}
+
 		return tempPath;
 	}
 
 	/// <summary>
 	/// Swaps the running executable with the downloaded update and relaunches.
 	/// </summary>
-	public static void ApplyUpdateAndRestart(string downloadedExePath)
+	public static void ApplyUpdateAndRestart(
+		string downloadedExePath,
+		string? newVersion = null)
 	{
 		string currentBinary = Environment.ProcessPath
 			?? throw new InvalidOperationException("Cannot determine current binary path.");
 		string oldBinary = currentBinary + ".old";
 
-		// Clean up leftovers from a previous failed update
+		InstallBinary(currentBinary, downloadedExePath);
+
+		try
+		{
+			// Leave a flag so the next launch can show a "just updated" notice. It records the version being
+			// installed, not the one this process was built as, which is about to be replaced.
+			WriteUpdatedFlag(newVersion ?? string.Empty);
+
+			// Drop the single-instance lock first: the new process starts before this one exits and would
+			// otherwise see the lock still held and quit immediately.
+			SingleInstance.Release();
+
+			// Relaunch with the new version
+			Process.Start(new ProcessStartInfo(currentBinary) { UseShellExecute = true });
+		}
+		catch
+		{
+			// The installed binary could not be started, so put the previous one back instead of leaving
+			// the user without a runnable executable.
+			RestorePreviousBinary(currentBinary, oldBinary);
+			throw;
+		}
+
+		Environment.Exit(0);
+	}
+
+	/// <summary>
+	/// Moves the running binary aside and installs <paramref name="downloadedExePath"/> at its path.
+	/// The previous binary is kept as <c>.old</c>; if the installation fails, it is moved back so the
+	/// current path is never left empty.
+	/// </summary>
+	internal static void InstallBinary(
+		string currentBinary,
+		string downloadedExePath)
+	{
+		string oldBinary = currentBinary + ".old";
+
+		// A previous attempt may have failed after moving the only executable aside. Recover it first.
+		if (!File.Exists(currentBinary) && File.Exists(oldBinary))
+			File.Move(oldBinary, currentBinary);
+
+		// The current binary is intact at this point, so an old backup can be replaced safely.
 		if (File.Exists(oldBinary))
 			File.Delete(oldBinary);
 
-		// Swap the current binary with the downloaded update
 		File.Move(currentBinary, oldBinary);
-		File.Move(downloadedExePath, currentBinary);
+		try
+		{
+			File.Move(downloadedExePath, currentBinary);
+		}
+		catch
+		{
+			try
+			{
+				if (!File.Exists(currentBinary) && File.Exists(oldBinary))
+					File.Move(oldBinary, currentBinary);
+			}
+			catch { }
 
-		// Leave a flag so the next launch can show a "just updated" notice
-		string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? string.Empty;
-		WriteUpdatedFlag(version);
+			throw;
+		}
+	}
 
-		// Drop the single-instance lock first: the new process starts before this one exits and would
-		// otherwise see the lock still held and quit immediately.
-		SingleInstance.Release();
+	private static void RestorePreviousBinary(
+		string currentBinary,
+		string oldBinary)
+	{
+		try
+		{
+			if (File.Exists(currentBinary))
+				File.Delete(currentBinary);
 
-		// Relaunch with the new version
-		Process.Start(new ProcessStartInfo(currentBinary) { UseShellExecute = true });
-		Environment.Exit(0);
+			if (File.Exists(oldBinary))
+				File.Move(oldBinary, currentBinary);
+		}
+		catch { }
 	}
 
 	/// <summary>
@@ -177,13 +268,24 @@ public static class UpdateService
 	/// </summary>
 	public static GitHubReleaseAsset? FindAsset(GitHubRelease release)
 	{
-		if (OperatingSystem.IsWindows())
-			return release.Assets.Find(a => a.Name.EndsWith("windows_amd64.exe", StringComparison.OrdinalIgnoreCase));
-		else
-			return release.Assets.Find(a => a.Name.EndsWith("linux_amd64", StringComparison.OrdinalIgnoreCase));
+		string suffix = OperatingSystem.IsWindows() ? WindowsAssetSuffix : LinuxAssetSuffix;
+
+		// Prefer the exact name the release workflow publishes
+		GitHubReleaseAsset? exact = release.Assets.Find(a =>
+			a.Name.Equals($"tinytrophy_{suffix}", StringComparison.OrdinalIgnoreCase));
+		if (exact is not null)
+			return exact;
+
+		// Otherwise accept any asset named after the platform, but never a packaged archive
+		return release.Assets.Find(a =>
+			a.Name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+			&& !a.Name.EndsWith(".deb", StringComparison.OrdinalIgnoreCase)
+			&& !a.Name.EndsWith(".rpm", StringComparison.OrdinalIgnoreCase)
+			&& !a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+			&& !a.Name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase));
 	}
 
-	private static Version? ParseVersion(string tag)
+	internal static Version? ParseVersion(string tag)
 	{
 		string trimmed = tag.TrimStart('v', 'V');
 		return Version.TryParse(trimmed, out Version? version) ? version : null;

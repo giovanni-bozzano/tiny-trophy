@@ -10,7 +10,9 @@ public partial class UpdateDialog
 	: Window
 {
 	private readonly GitHubReleaseAsset? _asset;
+	private readonly string? _newVersion;
 	private CancellationTokenSource? _cts;
+	private bool _closed;
 
 	public UpdateDialog()
 	{
@@ -21,6 +23,7 @@ public partial class UpdateDialog
 		: this()
 	{
 		_asset = UpdateService.FindAsset(release);
+		_newVersion = release.TagName;
 		VersionText.Text = $"Version {release.TagName} is now available.";
 		ReleaseLink.NavigateUri = new Uri(release.HtmlUrl);
 		ReleaseLink.Content = "View release on GitHub";
@@ -28,6 +31,15 @@ public partial class UpdateDialog
 		// If no downloadable exe asset, hide the update button
 		if (_asset is null)
 			DownloadButton.IsVisible = false;
+	}
+
+	protected override void OnClosed(EventArgs e)
+	{
+		_closed = true;
+		// Closing the dialog must abort the download: otherwise it would finish later and replace the
+		// executable even though the user dismissed the update.
+		_cts?.Cancel();
+		base.OnClosed(e);
 	}
 
 	private void OnSkipClicked(
@@ -50,7 +62,9 @@ public partial class UpdateDialog
 		ProgressPanel.IsVisible = true;
 		StatusText.Text = "Downloading...";
 
-		_cts = new CancellationTokenSource();
+		using CancellationTokenSource cts = new();
+		_cts = cts;
+		CancellationToken ct = cts.Token;
 		Progress<double> progress = new(p =>
 		{
 			Dispatcher.UIThread.Post(() =>
@@ -62,22 +76,37 @@ public partial class UpdateDialog
 
 		try
 		{
-			string tempPath = await UpdateService.DownloadUpdateAsync(_asset, progress, _cts.Token);
+			string tempPath = await UpdateService.DownloadUpdateAsync(_asset, progress, ct);
+			if (_closed || ct.IsCancellationRequested)
+				return;
 
 			StatusText.Text = "Installing update...";
-			await Task.Delay(200); // Brief pause so the user sees the status change
+			await Task.Delay(200, ct); // Brief pause so the user sees the status change
+			if (_closed || ct.IsCancellationRequested)
+				return;
 
-			UpdateService.ApplyUpdateAndRestart(tempPath);
+			UpdateService.ApplyUpdateAndRestart(tempPath, _newVersion);
 		}
 		catch (OperationCanceledException)
 		{
-			StatusText.Text = "Download cancelled.";
-			ResetUi();
+			if (!_closed)
+			{
+				StatusText.Text = "Download cancelled.";
+				ResetUi();
+			}
 		}
 		catch (Exception ex)
 		{
-			StatusText.Text = $"Update failed: {ex.Message}";
-			ResetUi();
+			if (!_closed)
+			{
+				StatusText.Text = $"Update failed: {ex.Message}";
+				ResetUi();
+			}
+		}
+		finally
+		{
+			if (ReferenceEquals(_cts, cts))
+				_cts = null;
 		}
 	}
 
