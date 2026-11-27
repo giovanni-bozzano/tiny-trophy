@@ -20,7 +20,7 @@ including Steam emulator achievements inside Proton/Wine prefixes.
 | Every source in one list | Official Steam achievements, Steam emulator save files and ShadPS4 trophies are scanned, merged by game and shown together. |
 | Real-time notifications | A desktop popup, with optional sound, appears the moment an achievement unlocks. |
 | Live monitoring | Folder watchers pick up unlocks while a game runs and re-read only the game that changed. |
-| A lightweight footprint | ~100 MB of RAM with the window open, ~10 MB while in the tray. Native Avalonia UI, no bundled browser engine. |
+| A lightweight footprint | ~50 MB of RAM with the window open, ~10 MB while in the tray. Native Avalonia UI, no bundled browser engine. |
 | One portable file | No installer and no runtime to pre-install; the published build is a single executable. |
 | Auto-updates | Checks GitHub releases and lets you update in one click. |
 | Linux and Proton | Resolves Windows-style save paths inside every configured Proton/Wine prefix. |
@@ -36,7 +36,7 @@ unlock, and rarity is shown when Steam reports a global percentage or the trophy
 Tiny Trophy is designed to stay out of your way while you game. It uses a native desktop toolkit —
 no browser engine, no hidden background processes eating into your system resources.
 
-- **~100 MB of RAM (~10 MB in the background)** leaves more memory for the game's textures, world
+- **~50 MB of RAM (~10 MB in the background)** leaves more memory for the game's textures, world
   streaming and frame pacing.
 - **Minimal CPU usage** keeps the processor focused on the game rather than on rendering a tracker
   in the background.
