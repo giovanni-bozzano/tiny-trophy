@@ -4,6 +4,12 @@ on:
   push:
     branches: ["main"]
 
+# One push event covers all of its commits. If pushes arrive back-to-back, only the newest one
+# should publish; the older in-flight run is cancelled instead of racing it.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   id-token: write
