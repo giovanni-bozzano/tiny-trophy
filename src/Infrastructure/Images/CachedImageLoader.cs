@@ -3,6 +3,7 @@ using AsyncImageLoader.Core.Leases;
 using AsyncImageLoader.Core.Pipeline;
 using AsyncImageLoader.Core.Transport;
 using Avalonia.Media.Imaging;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -23,6 +24,13 @@ public sealed class CachedImageLoader
 	private static readonly string CacheDir = Path.Combine(AppPaths.CacheDir, "imagecache");
 
 	private const string PartialSuffix = ".partial";
+	private const string VersionFileName = ".version";
+
+	// Bump when the resize policy changes: EnsureCacheVersion clears files written at an older size.
+	private const int CacheVersion = 1;
+
+	private static readonly Lock s_cacheInitLock = new();
+	private static bool s_cacheInitialized;
 
 	private readonly Lock _downloadsLock = new();
 	private readonly Dictionary<string, Task> _downloads = [];
@@ -43,6 +51,7 @@ public sealed class CachedImageLoader
 		_transport = new HttpImageTransport(_httpClient);
 
 		Directory.CreateDirectory(CacheDir);
+		EnsureCacheVersion();
 		Task.Run(DeleteStaleFiles);
 	}
 
@@ -73,7 +82,7 @@ public sealed class CachedImageLoader
 		return await LoadFromGlobalCache(uri);
 	}
 
-	private static Task<Bitmap?> LoadFromGlobalCache(string uri)
+	private Task<Bitmap?> LoadFromGlobalCache(string uri)
 	{
 		string cachePath = GetCachePath(uri);
 		if (!File.Exists(cachePath))
@@ -209,8 +218,41 @@ public sealed class CachedImageLoader
 	}
 
 	/// <summary>
-	/// Deletes images left behind by a version that stored them at a different size, along with any
-	/// interrupted download.
+	/// Clears caches written by an older layout or resize width. Changing <see cref="CacheVersion"/> makes
+	/// the next launch remove the whole previous cache instead of reusing images at the wrong size.
+	/// </summary>
+	private static void EnsureCacheVersion()
+	{
+		lock (s_cacheInitLock)
+		{
+			if (s_cacheInitialized)
+				return;
+
+			s_cacheInitialized = true;
+			try
+			{
+				string versionPath = Path.Combine(CacheDir, VersionFileName);
+				string expectedVersion = CacheVersion.ToString(CultureInfo.InvariantCulture);
+				if (File.Exists(versionPath) && File.ReadAllText(versionPath).Trim() == expectedVersion)
+					return;
+
+				foreach (string file in Directory.EnumerateFiles(CacheDir))
+					File.Delete(file);
+				foreach (string directory in Directory.EnumerateDirectories(CacheDir))
+					Directory.Delete(directory, recursive: true);
+
+				File.WriteAllText(versionPath, expectedVersion);
+			}
+			catch
+			{
+				// Best effort: an uncleared cache is still safe, just larger
+			}
+		}
+	}
+
+	/// <summary>
+	/// Deletes interrupted downloads left behind by a failed write. Images at other widths have separate
+	/// names, and a cache-layout change is handled by <see cref="EnsureCacheVersion"/>.
 	/// </summary>
 	private static void DeleteStaleFiles()
 	{
@@ -231,10 +273,12 @@ public sealed class CachedImageLoader
 		catch { }
 	}
 
-	private static string GetCachePath(string uri)
+	private string GetCachePath(string uri)
 	{
-		// Use a stable hash of the URI as the filename
+		// The width is part of the name: the cover and icon loaders share this directory, so the same
+		// URI must never be served from the other loader's differently sized copy.
 		string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(uri)));
-		return Path.Combine(CacheDir, hash);
+		string width = _targetWidth.ToString(CultureInfo.InvariantCulture);
+		return Path.Combine(CacheDir, $"{hash}-{width}");
 	}
 }

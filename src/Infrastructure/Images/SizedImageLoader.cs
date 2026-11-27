@@ -67,18 +67,41 @@ public static class SizedImageLoader
 			try
 			{
 				await Task.Delay(10, cts.Token);
-				// The lease is not disposed: the bitmap is handed to the Image, and ImageSourceDisposer frees it
+
+				// Once the bitmap is handed to the Image, ImageSourceDisposer frees it along with the control
 				IImageLease? lease = await loader.LoadAsync(new ImageLoadRequest(url), cts.Token);
-				return lease?.Image;
+				if (lease is null)
+					return null;
+
+				// A newer load superseded this one while it was in flight, so it is released here instead of
+				// being left for the control that will never own it
+				if (cts.Token.IsCancellationRequested)
+				{
+					lease.Dispose();
+					return null;
+				}
+
+				return lease.Image;
 			}
-			catch (TaskCanceledException)
+			catch (OperationCanceledException)
 			{
+				return null;
+			}
+			catch
+			{
+				// This runs from an async void handler, where an escaping exception would terminate the
+				// process. A loader can also fail during shutdown or on an undecodable image.
 				return null;
 			}
 		});
 
-		if (bitmap is not null && !cts.Token.IsCancellationRequested)
-			sender.Source = bitmap;
+		if (bitmap is not null)
+		{
+			if (cts.Token.IsCancellationRequested)
+				(bitmap as IDisposable)?.Dispose();
+			else
+				sender.Source = bitmap;
+		}
 
 		s_pendingOperations.TryRemove(new KeyValuePair<Image, CancellationTokenSource>(sender, cts));
 	}
