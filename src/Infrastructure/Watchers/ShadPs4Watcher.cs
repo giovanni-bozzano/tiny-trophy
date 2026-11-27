@@ -62,8 +62,7 @@ public sealed class ShadPs4Watcher(ISettingsService settings) : GameWatcherBase
 			FileSystemWatcher watcher = new(path)
 			{
 				IncludeSubdirectories = true,
-				NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.CreationTime,
-				EnableRaisingEvents = true
+				NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.CreationTime
 			};
 
 			watcher.Changed += handler;
@@ -117,9 +116,9 @@ public sealed class ShadPs4Watcher(ISettingsService settings) : GameWatcherBase
 				return Task.CompletedTask;
 			}
 
-			MarkGamePresent(npwrId);
+			bool isNewGame = MarkGamePresent(npwrId);
 			List<Achievement> currentUnlocked = [.. achievements.Where(a => a.IsUnlocked)];
-			List<Achievement> newAchievements = DiffAndUpdate(npwrId, currentUnlocked);
+			List<Achievement> newAchievements = DiffAndUpdate(npwrId, currentUnlocked, reportChange: !isNewGame);
 
 			foreach (Achievement ach in newAchievements)
 			{

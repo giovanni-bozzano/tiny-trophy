@@ -57,8 +57,7 @@ public sealed class SteamEmulatorWatcher(
 				FileSystemWatcher watcher = new(resolved)
 				{
 					IncludeSubdirectories = true,
-					NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
-					EnableRaisingEvents = true
+					NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime
 				};
 
 				foreach (string filter in AchievementFileParser.AchievementFileNames)
@@ -100,9 +99,9 @@ public sealed class SteamEmulatorWatcher(
 				return;
 			}
 
-			MarkGamePresent(key);
+			bool isNewGame = MarkGamePresent(key);
 
-			List<Achievement> newAchievements = DiffAndUpdate(key, currentUnlocked);
+			List<Achievement> newAchievements = DiffAndUpdate(key, currentUnlocked, reportChange: !isNewGame);
 
 			if (newAchievements.Count == 0)
 				return;
@@ -124,10 +123,8 @@ public sealed class SteamEmulatorWatcher(
 		if (string.IsNullOrWhiteSpace(apiKey))
 			return null;
 
-		ApiKeyValidationResult validationResult = await steamApi.ValidateApiKeyAsync(apiKey);
-		if (validationResult != ApiKeyValidationResult.Valid)
-			return null;
-
+		// Deliberately no key check here: validating on every unlock costs an extra round-trip before
+		// the notification is raised, and a rejected key simply makes the lookup fail
 		try
 		{
 			return await steamApi.GetSteamGameMetadataAsync(appId);

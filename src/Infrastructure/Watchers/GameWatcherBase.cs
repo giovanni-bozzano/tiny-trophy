@@ -116,7 +116,37 @@ public abstract class GameWatcherBase : IGameWatcher
 	/// </summary>
 	protected void AddWatcher(FileSystemWatcher watcher)
 	{
+		try
+		{
+			// The default 8 KB buffer overflows when a game writes several files at once, and an
+			// overflow silently drops events
+			watcher.InternalBufferSize = 64 * 1024;
+		}
+		catch (InvalidOperationException)
+		{
+			// Already started, so it keeps the buffer size it was created with
+		}
+
+		watcher.Error += OnWatcherError;
+		watcher.EnableRaisingEvents = true;
 		_watchers.Add(watcher);
+	}
+
+	/// <summary>
+	/// Raised when a watcher cannot keep up (typically a buffer overflow), meaning file changes were
+	/// dropped. Every known game is re-read, so a missed unlock is recovered instead of lost until the
+	/// next restart.
+	/// </summary>
+	private void OnWatcherError(
+		object sender,
+		ErrorEventArgs e)
+	{
+		// A watcher is stopped by disabling it, so events from a retired generation are ignored
+		if (sender is FileSystemWatcher watcher && !watcher.EnableRaisingEvents)
+			return;
+
+		foreach (string key in _knownGames.Keys)
+			ScheduleDetection(key);
 	}
 
 	/// <summary>
@@ -134,10 +164,13 @@ public abstract class GameWatcherBase : IGameWatcher
 	/// <summary>
 	/// Records that a game was found by a live detection, reporting it if it is new.
 	/// </summary>
-	protected void MarkGamePresent(string key)
+	protected bool MarkGamePresent(string key)
 	{
-		if (!IsStaleRun() && _knownGames.TryAdd(key, 0))
-			AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
+		if (IsStaleRun() || !_knownGames.TryAdd(key, 0))
+			return false;
+
+		AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
+		return true;
 	}
 
 	/// <summary>
@@ -158,7 +191,8 @@ public abstract class GameWatcherBase : IGameWatcher
 	/// </summary>
 	protected List<Achievement> DiffAndUpdate(
 		string key,
-		List<Achievement> currentUnlocked)
+		List<Achievement> currentUnlocked,
+		bool reportChange = true)
 	{
 		if (IsStaleRun())
 			return [];
@@ -177,7 +211,9 @@ public abstract class GameWatcherBase : IGameWatcher
 		if (newAchievements.Count == 0 && !hasRemovals)
 			return [];
 
-		AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
+		// A brand-new game was already reported by MarkGamePresent, so it is not reported twice
+		if (reportChange)
+			AchievementsChanged?.Invoke(this, new GameChangedEventArgs(Source, key));
 
 		return newAchievements;
 	}
