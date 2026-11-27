@@ -48,11 +48,10 @@ public partial class App
 			_mainWindow = new MainWindow(mainViewModel, settingsService);
 			_mainWindow.ExitRequested += (_, _) => ExitApp();
 
-			// A flag means this is the first launch after an update. It is consumed here, rather than during
-			// initialization, so the version the user is now running can actually be reported.
-			string? updatedVersion = UpdateService.ConsumeUpdatedFlag();
-			if (updatedVersion is not null)
-				ShowUpdatedNotice(mainViewModel, updatedVersion);
+			// A flag means this is the first launch after an update. The notice reports the version this
+			// process is running, not the flag's contents: older updaters wrote their own version there.
+			if (UpdateService.ConsumeUpdatedFlag())
+				ShowUpdatedNotice(mainViewModel, UpdateService.CurrentVersion);
 
 			// Set up system tray icon
 			SetupTrayIcon();

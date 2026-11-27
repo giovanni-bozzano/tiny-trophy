@@ -146,4 +146,13 @@ public sealed class UpdateServiceTests
 		Assert.Equal(UpdateService.ParseVersion("1.2.3"), UpdateService.ParseVersion("v1.2.3"));
 		Assert.Equal(UpdateService.ParseVersion("1.2.3"), UpdateService.ParseVersion("V1.2.3"));
 	}
+
+	[Fact]
+	public void CurrentVersion_IsTheRunningAssemblyVersionWithoutRevision()
+	{
+		Version? assemblyVersion = typeof(UpdateService).Assembly.GetName().Version;
+
+		Assert.NotNull(assemblyVersion);
+		Assert.Equal(assemblyVersion!.ToString(3), UpdateService.CurrentVersion);
+	}
 }

@@ -18,36 +18,44 @@ public static class UpdateService
 	/// <summary>
 	/// Writes a flag file so the next launch knows an update just happened.
 	/// </summary>
-	public static void WriteUpdatedFlag(string newVersion)
+	public static void WriteUpdatedFlag()
 	{
-		if (string.IsNullOrWhiteSpace(newVersion))
-			return;
-
 		try
 		{
 			Directory.CreateDirectory(AppPaths.DataDir);
-			File.WriteAllText(UpdatedFlagPath, newVersion);
+			File.WriteAllText(UpdatedFlagPath, "1");
 		}
 		catch { }
 	}
 
 	/// <summary>
-	/// Reads and deletes the flag file. Returns the version string if the flag existed, otherwise null.
+	/// The version this process is running as, formatted the way the update notice shows it.
 	/// </summary>
-	public static string? ConsumeUpdatedFlag()
+	public static string CurrentVersion
+	{
+		get
+		{
+			Version? version = Assembly.GetExecutingAssembly().GetName().Version;
+			return version is null ? string.Empty : version.ToString(3);
+		}
+	}
+
+	/// <summary>
+	/// Reads and deletes the flag file. Returns true if an update flag existed.
+	/// </summary>
+	public static bool ConsumeUpdatedFlag()
 	{
 		try
 		{
 			if (!File.Exists(UpdatedFlagPath))
-				return null;
+				return false;
 
-			string version = File.ReadAllText(UpdatedFlagPath).Trim();
 			File.Delete(UpdatedFlagPath);
-			return string.IsNullOrWhiteSpace(version) ? null : version;
+			return true;
 		}
 		catch
 		{
-			return null;
+			return false;
 		}
 	}
 
@@ -155,9 +163,7 @@ public static class UpdateService
 	/// <summary>
 	/// Swaps the running executable with the downloaded update and relaunches.
 	/// </summary>
-	public static void ApplyUpdateAndRestart(
-		string downloadedExePath,
-		string? newVersion = null)
+	public static void ApplyUpdateAndRestart(string downloadedExePath)
 	{
 		string currentBinary = Environment.ProcessPath
 			?? throw new InvalidOperationException("Cannot determine current binary path.");
@@ -167,9 +173,8 @@ public static class UpdateService
 
 		try
 		{
-			// Leave a flag so the next launch can show a "just updated" notice. It records the version being
-			// installed, not the one this process was built as, which is about to be replaced.
-			WriteUpdatedFlag(newVersion ?? string.Empty);
+			// Leave a flag so the next launch can show a "just updated" notice.
+			WriteUpdatedFlag();
 
 			// Drop the single-instance lock first: the new process starts before this one exits and would
 			// otherwise see the lock still held and quit immediately.
@@ -180,6 +185,9 @@ public static class UpdateService
 		}
 		catch
 		{
+			// The old binary is about to run again, so do not let it announce an update that failed.
+			ClearUpdatedFlag();
+
 			// The installed binary could not be started, so put the previous one back instead of leaving
 			// the user without a runnable executable.
 			RestorePreviousBinary(currentBinary, oldBinary);
@@ -224,6 +232,15 @@ public static class UpdateService
 
 			throw;
 		}
+	}
+
+	private static void ClearUpdatedFlag()
+	{
+		try
+		{
+			File.Delete(UpdatedFlagPath);
+		}
+		catch { }
 	}
 
 	private static void RestorePreviousBinary(

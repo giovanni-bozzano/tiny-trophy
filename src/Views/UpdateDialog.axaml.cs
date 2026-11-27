@@ -10,7 +10,6 @@ public partial class UpdateDialog
 	: Window
 {
 	private readonly GitHubReleaseAsset? _asset;
-	private readonly string? _newVersion;
 	private CancellationTokenSource? _cts;
 	private bool _closed;
 
@@ -23,7 +22,6 @@ public partial class UpdateDialog
 		: this()
 	{
 		_asset = UpdateService.FindAsset(release);
-		_newVersion = release.TagName;
 		VersionText.Text = $"Version {release.TagName} is now available.";
 		ReleaseLink.NavigateUri = new Uri(release.HtmlUrl);
 		ReleaseLink.Content = "View release on GitHub";
@@ -85,7 +83,7 @@ public partial class UpdateDialog
 			if (_closed || ct.IsCancellationRequested)
 				return;
 
-			UpdateService.ApplyUpdateAndRestart(tempPath, _newVersion);
+			UpdateService.ApplyUpdateAndRestart(tempPath);
 		}
 		catch (OperationCanceledException)
 		{
