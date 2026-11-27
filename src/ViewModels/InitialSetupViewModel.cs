@@ -13,10 +13,11 @@ public sealed partial class InitialSetupViewModel(Action<string?, string?> onCom
 	public partial string SteamId { get; set; } = string.Empty;
 
 	[RelayCommand]
-	private async Task SaveAsync()
+	private Task SaveAsync()
 	{
 		string key = ApiKey.Trim();
 		string id = SteamId.Trim();
 		onComplete(key, string.IsNullOrWhiteSpace(id) ? null : id);
+		return Task.CompletedTask;
 	}
 }
