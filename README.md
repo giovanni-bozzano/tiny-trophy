@@ -1,6 +1,8 @@
 # Tiny Trophy
 
-A lightweight achievement tracker that monitors your games across multiple platforms — all in a single, portable executable. Runs natively on both **Windows** and **Linux**, including full support for Steam emulator achievements running under Proton/Wine.
+A lightweight achievement tracker that watches your games across Steam, Steam emulators and
+ShadPS4 — all in a single, portable executable. Runs natively on **Windows** and **Linux**,
+including Steam emulator achievements inside Proton/Wine prefixes.
 
 <table>
 	<td align="left">
@@ -11,50 +13,74 @@ A lightweight achievement tracker that monitors your games across multiple platf
 	</td>
 </table>
 
-## Features
+## What Tiny Trophy gives you
 
-- **Linux support** — Runs natively on Linux and transparently resolves Steam emulator achievement folders inside Proton/Wine prefixes, with customizable locations
-- **Multi-platform support** — Track achievements from Steam, Steam emulators, and PS4 games via ShadPS4
-- **Truly lightweight** — Uses ~50 MB of RAM (~10 MB while in background) with a native UI that won't slow down your system while gaming
-- **Single portable executable** — No installer, no runtime to pre-install, no dependencies to manage
-- **Real-time notifications** — Get desktop popups (with optional sound) the moment you unlock an achievement
-- **Live monitoring** — Watches your achievement folders for changes so progress is always up to date
-- **Auto-updates** — Checks GitHub for new releases and lets you update in one click
+| Capability | What it means in use |
+|---|---|
+| Every source in one list | Official Steam achievements, Steam emulator save files and ShadPS4 trophies are scanned, merged by game and shown together. |
+| Real-time notifications | A desktop popup, with optional sound, appears the moment an achievement unlocks. |
+| Live monitoring | Folder watchers pick up unlocks while a game runs and re-read only the game that changed. |
+| A lightweight footprint | ~100 MB of RAM with the window open, ~10 MB while in the tray. Native Avalonia UI, no bundled browser engine. |
+| One portable file | No installer and no runtime to pre-install; the published build is a single executable. |
+| Auto-updates | Checks GitHub releases and lets you update in one click. |
+| Linux and Proton | Resolves Windows-style save paths inside every configured Proton/Wine prefix. |
 
-## Why Lightweight Matters
+### The achievement you just unlocked
 
-Tiny Trophy is designed to stay out of your way while you game. It uses native desktop technology — no bundled browser engine, no hidden background processes eating into your system resources.
+Notifications are raised from the same watcher that keeps the list current, so a popup never
+arrives for an achievement the app will not show. Hidden achievements stay masked until they
+unlock, and rarity is shown when Steam reports a global percentage or the trophy has a PS4 tier.
 
-- **~50 MB of RAM (~10 MB while in background)** — Leaves more memory available for your game to use on textures, world streaming, and smoother frame pacing.
-- **Minimal CPU usage** — Your processor stays focused on your game, not on rendering a tracker UI in the background.
-- **No stutters or frame drops** — Runs silently without competing for GPU composition or system resources while you play.
+### Lightweight on purpose
+
+Tiny Trophy is designed to stay out of your way while you game. It uses a native desktop toolkit —
+no browser engine, no hidden background processes eating into your system resources.
+
+- **~100 MB of RAM (~10 MB in the background)** leaves more memory for the game's textures, world
+  streaming and frame pacing.
+- **Minimal CPU usage** keeps the processor focused on the game rather than on rendering a tracker
+  in the background.
+- **No stutters or frame drops** while playing: scanning and enrichment run off the UI thread, and
+  images are cached at the size they are drawn.
+
+## Requirements and limits
+
+- Windows 10/11 x64 or a modern x64 Linux distribution.
+- The published executable is self-contained; building from source needs the .NET 10 SDK.
+- Steam's official source needs a personal Steam Web API key and Steam ID. The emulator and
+  ShadPS4 sources need neither.
+- Only achievement files the app understands are read. A save format with no parser shows no
+  achievements for that game.
+- The app is single-instance and lives in the system tray; closing the window does not quit it.
+- One scan runs at a time. A reload requested while a scan is running is queued, and metadata
+  enrichment keeps the home list hidden until it finishes.
 
 ## Download
 
-Grab the latest release from the [Releases](https://github.com/giovanni-bozzano/tiny-trophy/releases/latest) page.
+Grab the latest release from the [Releases](https://github.com/giovanni-bozzano/tiny-trophy/releases/latest)
+page. No installation is needed — download and run.
 
-No installation needed — just download and run.
+## Getting started
 
-## Getting Started
+1. Download the latest release.
+2. Run **TinyTrophy.exe** (or `TinyTrophy` on Linux).
+3. Follow the initial setup to configure your sources. Enter your Steam API key and Steam ID to
+   track official achievements.
+4. Right-click the tray icon to enable **Run on startup** and **Start minimized**.
 
-1. Download the latest release from the link above
-2. Run **TinyTrophy.exe**
-3. Follow the initial setup to configure your sources. Enter your Steam API key and Steam ID to track your official achievements
-4. Right-click the tray icon to enable **Run on startup** and **Start minimized**
-
-## Supported Sources
+## Supported sources
 
 | Source | Description |
 |--------|-------------|
 | Steam (Official) | Your real Steam library via the Steam Web API |
-| Steam (Emulator) | Achievement files from Steam emulators (see list below) |
+| Steam (Emulator) | Achievement files from Steam emulators (see the list below) |
 | ShadPS4 | PS4 trophies from the [ShadPS4](https://github.com/shadps4-emu/shadPS4) emulator |
 
-### Supported Steam Emulators
+### Supported Steam emulators
 
 The following emulator folders are detected automatically on first launch:
 
-| Emulator | Default Path |
+| Emulator | Default path |
 |----------|-------------|
 | Goldberg | `%AppData%\Goldberg SteamEmu Saves` |
 | GSE | `%AppData%\GSE Saves` |
@@ -64,19 +90,24 @@ The following emulator folders are detected automatically on first launch:
 | CODEX (Public Documents) | `%CommonDocuments%\Steam\CODEX` |
 | EMPRESS (AppData) | `%AppData%\EMPRESS` |
 | EMPRESS (Public Documents) | `%CommonDocuments%\EMPRESS` |
-| SmartSteamEmu | `%AppData%\SmartSteamEmu`
+| SmartSteamEmu | `%AppData%\SmartSteamEmu` |
 | Anadius LSX | `%LocalAppData%\anadius\LSX emu\achievement_watcher` |
 | SKIDROW | `%LocalAppData%\SKIDROW` |
 
-### Custom Folders
+### Custom folders
 
-You can also add your own custom folders from the settings page. Any folder that contains subfolders named by Steam AppID with achievement files will be picked up automatically. Each folder can be individually enabled or disabled.
+Add your own folders from Settings. Any folder that contains subfolders named by Steam AppID with
+achievement files is picked up automatically. Each folder can be enabled or disabled individually;
+default folders can be disabled but not removed.
 
-### Linux Support
+### Linux and Proton
 
-Tiny Trophy runs natively on Linux. Since Steam emulator save paths are authored as Windows paths (`%AppData%`, `%LocalAppData%`, etc.), on Linux they are resolved separately inside every Proton/Wine prefix found under your configured **Proton/Wine Prefix Directories** (visible in Settings only on Linux). The following default prefix locations are detected automatically:
+Tiny Trophy runs natively on Linux. Because emulator save paths are authored as Windows paths
+(`%AppData%`, `%LocalAppData%`, etc.), they are resolved separately inside every Proton/Wine prefix
+found under your configured **Proton/Wine Prefix Directories** (shown in Settings on Linux). The
+following default prefix locations are detected automatically:
 
-| Launcher | Default Prefix Directory |
+| Launcher | Default prefix directory |
 |----------|--------------------------|
 | Steam | `~/.steam/steam/steamapps/compatdata/*/pfx` |
 | Steam (alternative) | `~/.local/share/Steam/steamapps/compatdata/*/pfx` |
@@ -86,32 +117,74 @@ Tiny Trophy runs natively on Linux. Since Steam emulator save paths are authored
 | Lutris | `~/Games/*/*` |
 | Bottles (Flatpak) | `~/.var/app/com.usebottles.bottles/data/bottles/bottles/*` |
 
-Each `*` is resolved against every real (non-symlink) directory found on disk at that level. You can add, remove, enable, or disable prefix directories from Settings, and use the built-in directory debug panel to see every candidate path each watched folder expands to and whether it exists on disk.
+Each `*` is resolved against every real (non-symlink) directory found on disk at that level. Prefix
+directories can be added, removed, enabled or disabled from Settings, and the built-in directory
+debug panel shows every candidate path a watched folder expands to and whether it exists.
 
-## Why a Steam Web API Key?
+## Why a Steam Web API key?
 
-Tiny Trophy asks for your personal [Steam Web API key](https://steamcommunity.com/dev/apikey) to fetch achievement names, descriptions, icons, and global unlock percentages directly from Valve's official `ISteamUserStats` API.
+Tiny Trophy asks for your personal [Steam Web API key](https://steamcommunity.com/dev/apikey) to
+fetch achievement names, descriptions, icons and global unlock percentages directly from Valve's
+official `ISteamUserStats` API.
 
-Using your own free API key means:
+Using your own free key means:
 
-- **Always up to date** — Achievement data comes straight from Steam for every game, including ones released yesterday.
-- **Reliable** — Your requests go directly to Valve's servers under your own key, so you're never affected by another user's activity or rate limit.
-- **Private and yours** — Your key is stored locally and used only to talk to Valve's servers on your behalf; Tiny Trophy has no server of its own and never sees or transmits your key anywhere else.
-- **Free and quick to get** — Generating a key takes less than a minute at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) and doesn't cost anything.
+- **Always up to date** — achievement data comes straight from Steam, including games released
+  yesterday.
+- **Reliable** — requests go directly to Valve under your own key, so another user's activity or
+  rate limit cannot affect you.
+- **Private and yours** — the key is stored locally and used only to talk to Valve on your behalf;
+  Tiny Trophy has no server and never sees or transmits it anywhere else.
+- **Free and quick** — generating a key takes less than a minute at
+  [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey).
 
-## Building from Source
+## Build
 
-Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download)
+Requirements: the [.NET 10 SDK](https://dotnet.microsoft.com/download), plus the platform C
+toolchain NativeAOT needs.
 
 ```bash
 git clone https://github.com/giovanni-bozzano/tiny-trophy.git
 cd tiny-trophy
+dotnet build TinyTrophy.slnx -c Debug
 dotnet publish src/TinyTrophy.csproj -c Release -r win-x64
 ```
 
-Replace `win-x64` with `linux-x64` to build for Linux instead.
+Replace `win-x64` with `linux-x64` to build for Linux. NativeAOT cannot cross-compile, so each
+runtime identifier has to be published on its own OS. The output is a single executable in
+`src/bin/Release/net10.0/<rid>/publish/`.
 
-The output is a single portable executable in `src/bin/Release/net10.0/<rid>/publish/`.
+See [Build and publish](docs/BUILD.md) for prerequisites, outputs and troubleshooting, and
+[Testing](docs/TESTING.md) for the test suite.
+
+## How it works
+
+Scanners read local achievement files and, when credentials are configured, the Steam Web API.
+The achievement service merges duplicate games from different sources, and enrichers add Steam
+names, icons, hidden flags and global percentages. One view model owns the merged list, its search,
+filter and sort state and the profile totals; detail pages are refreshed from the same list.
+
+Folder watchers run alongside the scan. They seed their known state from disk, debounce bursts of
+file events, compare unlocks against that state and raise two kinds of events: a single game changed
+(refresh it), or an achievement unlocked (show a notification). The UI thread receives both.
+
+Settings, the Steam metadata cache, downloaded images and the update flag live under the
+platform-appropriate app data directories. Writes are atomic, caches are disposable, and the app
+trims freed memory when it hides to the tray.
+
+## Documentation
+
+| Guide | What it covers |
+|---|---|
+| [Build and publish](docs/BUILD.md) | Prerequisites, Debug build, run, NativeAOT publish and outputs |
+| [Testing](docs/TESTING.md) | Test suite map, running tests and what needs a window or network |
+| [Architecture](docs/architecture/README.md) | Components, data flow, threading, persistence and packaging |
+| [Agent instructions](AGENTS.md) | Rules for changing code, tests and commits |
+
+## Licensing
+
+The repository is MIT-licensed; see [LICENSE](LICENSE). Achievement names, icons and global
+percentages are fetched from Steam and remain subject to Valve's terms.
 
 ## Acknowledgements
 
