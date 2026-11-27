@@ -260,16 +260,21 @@ public sealed class SteamEmulatorScanner(ISettingsService settings)
 	/// to share a prefix between two app IDs), which would otherwise report the same real directory as
 	/// two separate candidates.
 	/// </remarks>
-	private static IEnumerable<string> ExpandProtonPrefixDirectoryGlob(string pattern)
+	internal static IEnumerable<string> ExpandProtonPrefixDirectoryGlob(string pattern)
 	{
-		string[] segments = pattern.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		char[] separators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
+		bool isRooted = pattern.StartsWith(Path.DirectorySeparatorChar) || pattern.StartsWith(Path.AltDirectorySeparatorChar);
+		string[] segments = pattern.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+		if (segments.Length == 0)
+			return [];
 
-		IEnumerable<string> candidatePaths = [segments[0]];
+		// A rooted pattern starts at the filesystem root, a relative one at its first segment, which must
+		// not be combined with itself
+		IEnumerable<string> candidatePaths = isRooted
+			? [Path.DirectorySeparatorChar.ToString()]
+			: [segments[0]];
 
-		if (pattern.StartsWith(Path.DirectorySeparatorChar) || pattern.StartsWith(Path.AltDirectorySeparatorChar))
-			candidatePaths = [Path.DirectorySeparatorChar.ToString()];
-
-		foreach (string segment in segments)
+		foreach (string segment in segments[(isRooted ? 0 : 1)..])
 		{
 			if (segment != "*")
 			{
