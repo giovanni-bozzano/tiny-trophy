@@ -26,7 +26,20 @@ public sealed partial class MainViewModel
 	public partial bool ShowNavBar { get; set; } = true;
 
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(CanRetrySteam))]
 	public partial string ApiKeyWarning { get; set; } = string.Empty;
+
+	/// <summary>
+	/// True when the warning is about connectivity, so a retry is worth offering. An invalid key
+	/// needs Settings, not another request.
+	/// </summary>
+	public bool CanRetrySteam => ApiKeyWarning == ApiKeyWarningMessages.Unreachable;
+
+	/// <summary>
+	/// Informational banner text, e.g. the version the app just updated to.
+	/// </summary>
+	[ObservableProperty]
+	public partial string InfoMessage { get; set; } = string.Empty;
 
 	[ObservableProperty]
 	public partial bool IsBusy { get; private set; }
@@ -56,10 +69,11 @@ public sealed partial class MainViewModel
 		HomeViewModel = new HomeViewModel(achievementService, this, settingsService, steamApi);
 		SettingsViewModel = new SettingsViewModel(settingsService, this, checkForUpdate);
 
-		HomeViewModel.LoadGamesCommand.PropertyChanged += (_, e) =>
+		// Covers both paths into a load: the command and a direct ReloadGamesAsync call (settings save)
+		HomeViewModel.PropertyChanged += (_, e) =>
 		{
-			if (e.PropertyName == nameof(HomeViewModel.LoadGamesCommand.IsRunning))
-				IsBusy = HomeViewModel.LoadGamesCommand.IsRunning;
+			if (e.PropertyName is nameof(HomeViewModel.IsLoading) or nameof(HomeViewModel.IsEnriching))
+				IsBusy = HomeViewModel.IsLoading || HomeViewModel.IsEnriching;
 		};
 
 		CurrentView = HomeViewModel;
@@ -144,7 +158,19 @@ public sealed partial class MainViewModel
 
 		CurrentView = HomeViewModel;
 		CanGoBack = false;
-		await HomeViewModel.LoadGamesCommand.ExecuteAsync(null);
+		await HomeViewModel.ReloadGamesAsync();
+	}
+
+	/// <summary>
+	/// Retries Steam after the user reconnected: bypasses the offline cooldown and reloads, without
+	/// discarding the metadata cache the way a full cache clear would.
+	/// </summary>
+	[RelayCommand]
+	private async Task RetrySteamAsync()
+	{
+		_steamApi.ResetOfflineState();
+		ApiKeyWarning = string.Empty;
+		await ReloadAsync(rescanPaths: false, clearCaches: false);
 	}
 
 	[RelayCommand]

@@ -73,6 +73,12 @@ public interface ISteamApiService
 	/// Drops both the in-memory and the disk metadata cache.
 	/// </summary>
 	void ClearCache();
+
+	/// <summary>
+	/// Clears the offline cooldown so an explicit retry reaches Steam immediately instead of being
+	/// skipped until the cooldown expires.
+	/// </summary>
+	void ResetOfflineState();
 }
 
 /// <inheritdoc cref="ISteamApiService"/>
@@ -122,6 +128,19 @@ public sealed class SteamApiService
 	/// Tells whether requests should be skipped because Steam recently failed to answer.
 	/// </summary>
 	private bool IsOffline => Interlocked.Read(ref _offlineUntilTicks) > DateTime.UtcNow.Ticks;
+
+	/// <summary>
+	/// The language cached metadata must be in.
+	/// </summary>
+	private string CurrentLanguage => string.IsNullOrWhiteSpace(_settings.Settings.Language)
+		? "english"
+		: _settings.Settings.Language;
+
+	/// <summary>
+	/// Tells whether cached metadata was fetched in the currently configured language.
+	/// </summary>
+	private bool IsCurrentLanguage(SteamGameMetadata metadata) =>
+		string.Equals(metadata.Language, CurrentLanguage, StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
 	/// Records the outcome of a request so later ones can fail fast while Steam is unreachable.
@@ -198,6 +217,7 @@ public sealed class SteamApiService
 		string apiKey,
 		CancellationToken ct)
 	{
+		apiKey = apiKey?.Trim() ?? string.Empty;
 		if (string.IsNullOrWhiteSpace(apiKey))
 			return ApiKeyValidationResult.Invalid;
 
@@ -245,7 +265,7 @@ public sealed class SteamApiService
 		CancellationToken ct = default)
 	{
 		// Checked before taking the gate so warm lookups, which are the vast majority, stay lock free
-		if (_cache.TryGetValue(appId, out SteamGameMetadata? cached))
+		if (_cache.TryGetValue(appId, out SteamGameMetadata? cached) && IsCurrentLanguage(cached))
 			return cached;
 
 		SemaphoreSlim gate = _gates.GetOrAdd(appId, _ => new SemaphoreSlim(1, 1));
@@ -253,7 +273,7 @@ public sealed class SteamApiService
 		try
 		{
 			// The waiting turned this into a cache hit: the caller ahead did the fetch for everyone
-			if (_cache.TryGetValue(appId, out cached))
+			if (_cache.TryGetValue(appId, out cached) && IsCurrentLanguage(cached))
 				return cached;
 
 			return await LoadMetadataAsync(appId, ct);
@@ -261,6 +281,10 @@ public sealed class SteamApiService
 		finally
 		{
 			gate.Release();
+
+			// Nobody is waiting on this gate anymore, so drop it instead of keeping one per app id forever
+			if (gate.CurrentCount == 1)
+				_gates.TryRemove(new KeyValuePair<string, SemaphoreSlim>(appId, gate));
 		}
 	}
 
@@ -275,6 +299,11 @@ public sealed class SteamApiService
 		SteamGameMetadata? staleMetadata = null;
 
 		SteamGameMetadata? diskMetadata = await ReadDiskCacheAsync(appId, ct);
+
+		// A language change makes the cached wording stale, so it is rebuilt from scratch
+		if (diskMetadata is not null && !IsCurrentLanguage(diskMetadata))
+			diskMetadata = null;
+
 		if (diskMetadata is not null)
 		{
 			// Doubles as the freshness probe: it lists every achievement of the game and needs no API key,
@@ -330,6 +359,7 @@ public sealed class SteamApiService
 		SteamGameMetadata metadata = new()
 		{
 			Name = schemaName,
+			Language = CurrentLanguage,
 			Achievements = achievements
 		};
 
@@ -524,13 +554,14 @@ public sealed class SteamApiService
 
 		// This is the one endpoint that needs a key, which is why a keyless user still gets game names and
 		// unlock percentages but no achievement titles or icons
-		string apiKey = _settings.Settings.SteamApiKey;
+		string apiKey = (_settings.Settings.SteamApiKey ?? string.Empty).Trim();
 		if (string.IsNullOrWhiteSpace(apiKey))
 			return (gameTitle, result);
 
 		// The language decides the wording returned for every achievement, so a language change invalidates
 		// the cached copy of the whole game
-		string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&format=json";
+		string language = Uri.EscapeDataString(CurrentLanguage);
+		string schemaUrl = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v0002/?key={apiKey}&appid={appId}&l={language}&format=json";
 		using JsonDocument? doc = await GetJsonAsync(schemaUrl, ct);
 		if (doc is null)
 			return (gameTitle, result);
@@ -604,7 +635,8 @@ public sealed class SteamApiService
 		CancellationToken ct = default)
 	{
 		List<string> appIds = [];
-		string apiKey = _settings.Settings.SteamApiKey;
+		steamId = steamId?.Trim() ?? string.Empty;
+		string apiKey = (_settings.Settings.SteamApiKey ?? string.Empty).Trim();
 		if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId))
 			return appIds;
 
@@ -640,7 +672,8 @@ public sealed class SteamApiService
 		CancellationToken ct = default)
 	{
 		List<Achievement> achievements = [];
-		string apiKey = _settings.Settings.SteamApiKey;
+		steamId = steamId?.Trim() ?? string.Empty;
+		string apiKey = (_settings.Settings.SteamApiKey ?? string.Empty).Trim();
 		if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId))
 			return achievements;
 
@@ -664,7 +697,7 @@ public sealed class SteamApiService
 						Id = name,
 						Name = name,
 						IsUnlocked = achieved == 1,
-						UnlockTime = unlockTime > 0 ? DateTimeOffset.FromUnixTimeSeconds(unlockTime).LocalDateTime : null,
+						UnlockTime = unlockTime > 0 ? UnixTime.ToLocalDateTime(unlockTime) : null,
 					});
 				}
 			}
@@ -673,6 +706,9 @@ public sealed class SteamApiService
 
 		return achievements;
 	}
+
+	/// <inheritdoc/>
+	public void ResetOfflineState() => SetOffline(false);
 
 	/// <inheritdoc/>
 	public void ClearCache()
