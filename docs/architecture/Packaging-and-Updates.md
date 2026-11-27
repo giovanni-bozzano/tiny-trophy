@@ -26,7 +26,8 @@ Constraints this imposes:
 for `win-x64` and `ubuntu-latest` for `linux-x64`, because NativeAOT cannot cross-compile. Each job
 sets up .NET 10, installs `clang` and `zlib1g-dev` on Linux, publishes, renames the output to
 `tinytrophy_windows_amd64.exe` or `tinytrophy_linux_amd64`, generates build provenance and uploads
-the artifact. It does not run tests.
+the artifact. A separate test job runs the suite on Windows and Linux first, and both publish jobs
+depend on it.
 
 ## Update flow
 
@@ -39,10 +40,11 @@ the artifact. It does not run tests.
    infinite timeout, because `HttpClient.Timeout` also covers reading the body and would abort a
    slow transfer. The caller cancels; progress is reported per chunk.
 4. **Swap.** `ApplyUpdateAndRestart` moves the running binary to `.old`, moves the download into
-   place, writes `updated.flag` with the installed version, releases the single-instance mutex,
-   starts the new process and exits.
-5. **Notice.** The next launch consumes the flag and shows "Updated to version X" in the info
-   banner for 12 seconds.
+   place, writes `updated.flag` as a marker, releases the single-instance mutex, starts the new
+   process and exits.
+5. **Notice.** The next launch consumes the flag and shows "Updated to version X" using the version
+   it is actually running, not the flag's contents: older updaters wrote the version they were
+   replacing. The banner lasts 12 seconds.
 6. **Cleanup.** `CleanupPreviousUpdate` deletes `.old` and `.update` leftovers during startup.
 
 If any step fails, the current binary is untouched until the swap begins, and the error is reported

@@ -65,10 +65,11 @@ source. Both exist because a decoded bitmap lives in unmanaged memory the GC bar
 
 ## Update flag
 
-`updated.flag` records the version installed by the updater. It is written after the binary swap and
-consumed once at the next startup, which shows a temporary banner and deletes the file. An empty or
-unreadable flag is ignored, and the write is best effort: failing to record it must not fail an
-update.
+`updated.flag` marks that an update was installed. It is written after the binary swap and consumed
+once at the next startup, which shows a temporary banner and deletes the file. The banner reports
+the running assembly version, not the file's contents: older updaters wrote the version they were
+replacing. An empty or unreadable flag is ignored, and the write is best effort: failing to record
+it must not fail an update.
 
 ## Memory rules that follow from this
 
