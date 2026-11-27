@@ -39,6 +39,10 @@ public static class AchievementFileParser
 	// Extra fallback display-name keys used only by the object format
 	private static readonly string[] NameFallbackKeys = ["name", "Name"];
 
+	// Progress fields, which only INI sections of real achievements carry
+	private static readonly string[] ProgressKeys =
+		["State", "CurProgress", "curProgress", "progress", "Progress", "MaxProgress", "maxProgress", "max_progress", "Max", "max"];
+
 	/// <summary>
 	/// Returns true if the file name is a known achievement data file.
 	/// </summary>
@@ -183,7 +187,7 @@ public static class AchievementFileParser
 				continue;
 			}
 
-			(string? id, string? displayName, _, bool earned, DateTime? time) = ReadAchievementFields(ref reader, includeIdKeys: true);
+			(string? id, string? displayName, _, bool earned, DateTime? time, _) = ReadAchievementFields(ref reader, includeIdKeys: true);
 			if (string.IsNullOrEmpty(id))
 				continue;
 
@@ -218,7 +222,12 @@ public static class AchievementFileParser
 				continue;
 			}
 
-			(_, string? displayName, string? nameFallback, bool earned, DateTime? time) = ReadAchievementFields(ref reader, includeIdKeys: false);
+			(_, string? displayName, string? nameFallback, bool earned, DateTime? time, bool hasKnownFields) = ReadAchievementFields(ref reader, includeIdKeys: false);
+
+			// Metadata objects (settings, statistics) are not achievements, so they are not listed as one
+			if (!hasKnownFields)
+				continue;
+
 			if (!earned && time.HasValue)
 				earned = true;
 
@@ -237,7 +246,7 @@ public static class AchievementFileParser
 	// right after its StartObject) in a single forward pass, classifying each property name against
 	// the known key lists in priority order — mirroring the previous per-key TryGetProperty lookups
 	// but without materializing a JsonDocument tree or allocating strings for properties never used.
-	private static (string? Id, string? DisplayName, string? NameFallback, bool Earned, DateTime? Time) ReadAchievementFields(
+	private static (string? Id, string? DisplayName, string? NameFallback, bool Earned, DateTime? Time, bool HasKnownFields) ReadAchievementFields(
 		ref Utf8JsonReader reader,
 		bool includeIdKeys)
 	{
@@ -251,6 +260,7 @@ public static class AchievementFileParser
 		int earnedPriority = int.MaxValue;
 		DateTime? time = null;
 		int timePriority = int.MaxValue;
+		bool hasKnownFields = false;
 
 		while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
 		{
@@ -266,20 +276,31 @@ public static class AchievementFileParser
 			reader.Read();
 			JsonTokenType valueKind = reader.TokenType;
 
+			// A recognized key holding a container is not an achievement field, and its contents must not
+			// be read as if they were top-level properties
+			if (valueKind is JsonTokenType.StartObject or JsonTokenType.StartArray)
+			{
+				reader.Skip();
+				continue;
+			}
+
 			if (idIdx >= 0 && idIdx < idPriority && valueKind == JsonTokenType.String)
 			{
 				id = reader.GetString();
 				idPriority = idIdx;
+				hasKnownFields = true;
 			}
 			else if (nameIdx >= 0 && nameIdx < namePriority && valueKind == JsonTokenType.String)
 			{
 				displayName = reader.GetString();
 				namePriority = nameIdx;
+				hasKnownFields = true;
 			}
 			else if (nameFallbackIdx >= 0 && nameFallbackIdx < nameFallbackPriority && valueKind == JsonTokenType.String)
 			{
 				nameFallback = reader.GetString();
 				nameFallbackPriority = nameFallbackIdx;
+				hasKnownFields = true;
 			}
 			else if (earnedIdx >= 0 && earnedIdx < earnedPriority)
 			{
@@ -287,34 +308,41 @@ public static class AchievementFileParser
 				{
 					JsonTokenType.True => true,
 					JsonTokenType.False => false,
-					JsonTokenType.Number => reader.GetInt32() == 1,
+					JsonTokenType.Number => reader.TryGetInt32(out int earnedNumber) && earnedNumber == 1,
 					JsonTokenType.String => reader.GetString() is "1" or "true" or "yes",
 					_ => false
 				};
 				earnedPriority = earnedIdx;
+				hasKnownFields = true;
 			}
 			else if (timeIdx >= 0 && timeIdx < timePriority)
 			{
 				long t = 0;
 				if (valueKind == JsonTokenType.Number)
-					t = reader.GetInt64();
+				{
+					t = reader.TryGetInt64(out long unixSeconds) ? unixSeconds
+						: reader.TryGetDouble(out double unixSecondsDouble) ? (long)unixSecondsDouble
+						: 0;
+				}
 				else if (valueKind == JsonTokenType.String && long.TryParse(reader.GetString(), out long parsed))
+				{
 					t = parsed;
+				}
 
+				hasKnownFields = true;
 				if (t > 0)
 				{
 					long normalized = t < 10_000_000_000 ? t : t / 1000;
-					time = DateTimeOffset.FromUnixTimeSeconds(normalized).LocalDateTime;
-					timePriority = timeIdx;
+					if (UnixTime.ToLocalDateTime(normalized) is DateTime parsedTime)
+					{
+						time = parsedTime;
+						timePriority = timeIdx;
+					}
 				}
-			}
-			else if (valueKind is JsonTokenType.StartObject or JsonTokenType.StartArray)
-			{
-				reader.Skip();
 			}
 		}
 
-		return (id, displayName, nameFallback, earned, time);
+		return (id, displayName, nameFallback, earned, time, hasKnownFields);
 	}
 
 	// Zero-allocation match: compares the current PropertyName token against each candidate key
@@ -352,6 +380,11 @@ public static class AchievementFileParser
 					continue;
 				}
 
+				// Sections without a single achievement field are emulator metadata (e.g. [General]), not
+				// achievements, and would otherwise inflate counts and completion percentages
+				if (!LooksLikeAchievementSection(values))
+					continue;
+
 				string? displayName = TryGetIniValue(values, DisplayNameKeys) ?? string.Empty;
 				bool earned = IsIniEarned(values);
 				DateTime? unlockTime = ParseIniUnlockTime(values, ref earned);
@@ -388,6 +421,25 @@ public static class AchievementFileParser
 		return [];
 	}
 
+	/// <summary>
+	/// Tells whether an INI section carries at least one field this parser reads, which is what
+	/// separates an achievement from an emulator metadata section.
+	/// </summary>
+	private static bool LooksLikeAchievementSection(Dictionary<string, string> values)
+	{
+		foreach (string key in values.Keys)
+		{
+			if (Array.Exists(EarnedKeys, k => k.Equals(key, StringComparison.OrdinalIgnoreCase)) ||
+				Array.Exists(TimeKeys, k => k.Equals(key, StringComparison.OrdinalIgnoreCase)) ||
+				Array.Exists(ProgressKeys, k => k.Equals(key, StringComparison.OrdinalIgnoreCase)))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private static bool IsIniEarned(Dictionary<string, string> values)
 	{
 		foreach (string key in EarnedKeys)
@@ -406,10 +458,14 @@ public static class AchievementFileParser
 		{
 			if (values.TryGetValue(key, out string? val) && long.TryParse(val, out long t) && t > 0)
 			{
+				long normalized = t < 10_000_000_000 ? t : t / 1000;
+				if (UnixTime.ToLocalDateTime(normalized) is not DateTime parsedTime)
+					continue;
+
 				if (!earned)
 					earned = true;
-				long normalized = t < 10_000_000_000 ? t : t / 1000;
-				return DateTimeOffset.FromUnixTimeSeconds(normalized).LocalDateTime;
+
+				return parsedTime;
 			}
 		}
 		return null;
@@ -467,7 +523,7 @@ public static class AchievementFileParser
 
 				string? crcHex = crc.ToString("x8");
 				DateTime? unlockDateTime = time > 0
-					? DateTimeOffset.FromUnixTimeSeconds(time).LocalDateTime
+					? UnixTime.ToLocalDateTime(time)
 					: null;
 
 				achievements.Add(new Achievement

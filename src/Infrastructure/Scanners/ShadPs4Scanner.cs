@@ -13,7 +13,9 @@ namespace TinyTrophy.Infrastructure.Scanners;
 public sealed partial class ShadPs4Scanner(ISettingsService settings)
 	: ISingleGameScanner
 {
-	private static readonly string ShadPs4Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "shadPS4");
+	// Resolved through AppPaths, because Environment.GetFolderPath can come back empty on Linux when HOME
+	// isn't set, which would silently make this relative to the process's launch directory.
+	private static readonly string ShadPs4Root = Path.Combine(AppPaths.DataRootDir, "shadPS4");
 
 	[GeneratedRegex(@"^TROP_\d{2}\.xml$", RegexOptions.IgnoreCase, "en-GB")]
 	private static partial Regex ThrophXmlRegex();
@@ -273,9 +275,7 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 			return null;
 		}
 
-		string title = baseDoc.Descendants("title-name").FirstOrDefault()?.Value.Trim()
-			?? baseDoc.Descendants("npcommid").FirstOrDefault()?.Value.Trim()
-			?? npwrId;
+		string title = ResolveTitle(baseDoc, npwrId);
 
 		Dictionary<string, TrophyEntry> trophies = new(StringComparer.OrdinalIgnoreCase);
 
@@ -317,6 +317,21 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 		};
 	}
 
+	/// <summary>
+	/// Reads the display title, falling back to the product id when the definition has no usable title.
+	/// </summary>
+	internal static string ResolveTitle(
+		XDocument baseDoc,
+		string npwrId)
+	{
+		string? titleName = baseDoc.Descendants("title-name").FirstOrDefault()?.Value.Trim();
+		if (!string.IsNullOrWhiteSpace(titleName))
+			return titleName;
+
+		string? npcommId = baseDoc.Descendants("npcommid").FirstOrDefault()?.Value.Trim();
+		return string.IsNullOrWhiteSpace(npcommId) ? npwrId : npcommId;
+	}
+
 	private static void ApplyProgress(
 		TrophySet trophySet,
 		string progressFile)
@@ -348,9 +363,8 @@ public sealed partial class ShadPs4Scanner(ISettingsService settings)
 					entry.IsUnlocked = true;
 
 					string? tsRaw = el.Attribute("timestamp")?.Value;
-					if (tsRaw is not null && long.TryParse(tsRaw, out long ts) && ts > 0)
+					if (tsRaw is not null && long.TryParse(tsRaw, out long ts) && UnixTime.ToLocalDateTime(ts) is DateTime unlockTime)
 					{
-						DateTime unlockTime = DateTimeOffset.FromUnixTimeSeconds(ts).LocalDateTime;
 						// Keep the latest unlock time if multiple users
 						if (entry.UnlockTime is null || unlockTime > entry.UnlockTime)
 							entry.UnlockTime = unlockTime;
