@@ -97,9 +97,9 @@ public sealed partial class SettingsViewModel
 	public void LoadFromSettings()
 	{
 		AppSettings s = _settingsService.Settings;
-		SteamApiKey = s.SteamApiKey;
-		_originalApiKey = s.SteamApiKey;
-		SteamId = s.SteamId;
+		SteamApiKey = s.SteamApiKey?.Trim() ?? string.Empty;
+		_originalApiKey = SteamApiKey;
+		SteamId = s.SteamId?.Trim() ?? string.Empty;
 		Language = s.Language;
 		ShowHidden = s.Achievements.ShowHidden;
 		MergeDuplicates = s.Achievements.MergeDuplicate;
@@ -186,9 +186,16 @@ public sealed partial class SettingsViewModel
 	private async Task SaveSettingsAsync()
 	{
 		StatusMessage = string.Empty;
+
+		// Pasting a key or id commonly carries surrounding whitespace, which Steam rejects
+		string apiKey = SteamApiKey?.Trim() ?? string.Empty;
+		string steamId = SteamId?.Trim() ?? string.Empty;
+		SteamApiKey = apiKey;
+		SteamId = steamId;
+
 		AppSettings s = _settingsService.Settings;
-		s.SteamApiKey = SteamApiKey;
-		s.SteamId = SteamId;
+		s.SteamApiKey = apiKey;
+		s.SteamId = steamId;
 		s.Language = Language;
 		s.Achievements.ShowHidden = ShowHidden;
 		s.Achievements.MergeDuplicate = MergeDuplicates;
@@ -203,10 +210,18 @@ public sealed partial class SettingsViewModel
 		s.WatchedDirectories = [.. WatchedDirectories.Select(d => d.ToConfig())];
 		s.ProtonPrefixDirectories = [.. ProtonPrefixDirectories.Select(d => d.ToConfig())];
 
-		await _settingsService.SaveAsync();
+		try
+		{
+			await _settingsService.SaveAsync();
+		}
+		catch (Exception ex)
+		{
+			StatusMessage = $"Could not save settings: {ex.Message}";
+			return;
+		}
 
-		bool apiKeyChanged = !string.Equals(SteamApiKey, _originalApiKey, StringComparison.Ordinal);
-		_originalApiKey = SteamApiKey;
+		bool apiKeyChanged = !string.Equals(apiKey, _originalApiKey, StringComparison.Ordinal);
+		_originalApiKey = apiKey;
 
 		await _mainViewModel.ApplySettingsAsync(apiKeyChanged);
 	}
