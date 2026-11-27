@@ -21,6 +21,9 @@ public sealed partial class HomeViewModel(
 	private readonly HashSet<(AchievementSource Source, string GameId)> _pendingChanges = [];
 	private bool _isFullLoadRunning;
 
+	// Set when a reload is asked for while one is already running, so it is not silently dropped
+	private bool _reloadRequested;
+
 	[ObservableProperty]
 	public partial ObservableCollection<GameItemViewModel> Games { get; set; } = [];
 
@@ -65,6 +68,12 @@ public sealed partial class HomeViewModel(
 	public partial bool SortAscending { get; set; } = settingsService.Settings.HomeSort.Ascending;
 
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(HasLoadError))]
+	public partial string LoadError { get; set; } = string.Empty;
+
+	public bool HasLoadError => !string.IsNullOrEmpty(LoadError);
+
+	[ObservableProperty]
 	public partial bool IsEmpty { get; set; }
 
 	public bool IsListVisible => !IsLoading && !IsEnriching;
@@ -85,6 +94,10 @@ public sealed partial class HomeViewModel(
 
 	partial void OnIsLoadingChanged(bool value)
 	{
+		// The empty state is computed during the scan, while IsLoading is still true, so it is refreshed
+		// here once loading actually finishes
+		IsEmpty = Games.Count == 0 && !value && !HasLoadError;
+
 		OnPropertyChanged(nameof(IsListVisible));
 		NotifyStatsChanged();
 	}
@@ -106,10 +119,28 @@ public sealed partial class HomeViewModel(
 	}
 
 	[RelayCommand]
-	private async Task LoadGamesAsync()
+	private Task LoadGamesAsync() => LoadGamesCoreAsync();
+
+	/// <summary>
+	/// Reloads every game on demand. A reload requested while one is already running is queued and run
+	/// once the current one finishes, so it can never be silently dropped.
+	/// </summary>
+	public async Task ReloadGamesAsync()
+	{
+		if (_isFullLoadRunning)
+		{
+			_reloadRequested = true;
+			return;
+		}
+
+		await LoadGamesCoreAsync();
+	}
+
+	private async Task LoadGamesCoreAsync()
 	{
 		_isFullLoadRunning = true;
 		_pendingChanges.Clear();
+		LoadError = string.Empty;
 		IsLoading = true;
 		IsScanning = true;
 		ScanningProgress = 0;
@@ -119,10 +150,12 @@ public sealed partial class HomeViewModel(
 		EnrichedCount = 0;
 		TotalGameCount = 0;
 
-		// Validate the API key before loading
-		string apiKey = settingsService.Settings.SteamApiKey;
+		// Start the key check without blocking the local scan: an offline launch otherwise pays the
+		// HTTP timeout before any local achievement file is read.
+		Task<ApiKeyValidationResult>? apiKeyValidation = null;
+		string apiKey = settingsService.Settings.SteamApiKey?.Trim() ?? string.Empty;
 		if (!string.IsNullOrWhiteSpace(apiKey))
-			await steamApi.ValidateApiKeyAsync(apiKey);
+			apiKeyValidation = steamApi.ValidateApiKeyAsync(apiKey);
 		else
 			mainViewModel.ApiKeyWarning = string.Empty;
 
@@ -134,7 +167,9 @@ public sealed partial class HomeViewModel(
 				ScanningProgress = (double)p.current / p.total * 100;
 				ScanningStatus = $"Scanning {p.scannerName}... ({p.current}/{p.total})";
 			});
-			IReadOnlyList<Game> games = await achievementService.ScanGamesAsync(scanProgress);
+			// The local scanners read every achievement file synchronously, so the scan is kept off the UI
+			// thread; the Progress<T> above marshals its reports back to the dispatcher
+			IReadOnlyList<Game> games = await Task.Run(() => achievementService.ScanGamesAsync(scanProgress));
 			_sourceGames = [.. games];
 			_allGames = [.. achievementService.MergeGames(_sourceGames)];
 			TotalGameCount = _allGames.Count;
@@ -145,34 +180,39 @@ public sealed partial class HomeViewModel(
 			IsScanning = false;
 			IsLoading = false;
 
+			// Enrichment needs Steam, so wait for the key check here rather than before the local scan
+			if (apiKeyValidation is not null)
+				await apiKeyValidation;
+
 			if (TotalGameCount == 0)
 			{
 				UserProfile = achievementService.GetUserProfile(_allGames);
-				return;
 			}
-
-			// Fetch metadata in the background (games remain visible)
-			IsEnriching = true;
-			LoadingProgress = 0;
-			LoadingStatus = $"Fetching metadata... (0/{TotalGameCount})";
-			Progress<int> progress = new(p =>
+			else
 			{
-				int done = (int)(p / 100.0 * TotalGameCount);
-				EnrichedCount = done;
-				LoadingProgress = p;
-				LoadingStatus = $"Fetching metadata... ({done}/{TotalGameCount})";
-			});
+				IsEnriching = true;
+				LoadingProgress = 0;
+				LoadingStatus = $"Fetching metadata... (0/{TotalGameCount})";
+				Progress<int> progress = new(p =>
+				{
+					int done = (int)(p / 100.0 * TotalGameCount);
+					EnrichedCount = done;
+					LoadingProgress = p;
+					LoadingStatus = $"Fetching metadata... ({done}/{TotalGameCount})";
+				});
 
-			await achievementService.EnrichGamesAsync(_sourceGames, progress);
+				await achievementService.EnrichGamesAsync(_sourceGames, progress);
 
-			// Refresh the UI with the enriched data
-			EnrichedCount = TotalGameCount;
-			LoadingProgress = 100;
-			RebuildGames();
+				// Refresh the UI with the enriched data
+				EnrichedCount = TotalGameCount;
+				LoadingProgress = 100;
+				RebuildGames();
+			}
 		}
 		catch (Exception ex)
 		{
-			LoadingStatus = $"Error: {ex.Message}";
+			LoadError = $"Could not load achievements: {ex.Message}";
+			IsEmpty = false;
 		}
 		finally
 		{
@@ -182,6 +222,13 @@ public sealed partial class HomeViewModel(
 		}
 
 		await ApplyPendingChangesAsync();
+
+		// A reload asked for while this one was running (e.g. settings saved mid-scan) runs now
+		if (_reloadRequested)
+		{
+			_reloadRequested = false;
+			await LoadGamesCoreAsync();
+		}
 	}
 
 	/// <summary>
@@ -202,17 +249,24 @@ public sealed partial class HomeViewModel(
 		IReadOnlyList<Game>? updated;
 		try
 		{
-			updated = await achievementService.ScanGameAsync(source, gameId);
+			// Re-reading a game touches disk, so it is kept off the UI thread
+			updated = await Task.Run(() => achievementService.ScanGameAsync(source, gameId));
 		}
 		catch
 		{
 			updated = null;
 		}
 
-		// The source can't refresh single games, fall back to a full reload
+		// The source can't refresh single games, so a full reload is queued instead
 		if (updated is null)
 		{
-			await LoadGamesCommand.ExecuteAsync(null);
+			_reloadRequested = true;
+			if (!_isFullLoadRunning)
+			{
+				_reloadRequested = false;
+				await LoadGamesCoreAsync();
+			}
+
 			return;
 		}
 
@@ -324,7 +378,7 @@ public sealed partial class HomeViewModel(
 
 		Games = new ObservableCollection<GameItemViewModel>(sorted.Select(g => new GameItemViewModel(g)));
 
-		IsEmpty = Games.Count == 0 && !IsLoading;
+		IsEmpty = Games.Count == 0 && !IsLoading && !HasLoadError;
 	}
 }
 

@@ -91,6 +91,10 @@
 						<TextBlock Text="{Binding ScanningProgress, StringFormat='{}{0:F0}%'}" Foreground="#66c0f4" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" IsVisible="{Binding IsScanning}" />
 					</StackPanel>
 				</Border>
+				<!-- Load Error -->
+				<Border IsVisible="{Binding HasLoadError}" Background="#DD5c1f1f" CornerRadius="4" Padding="16,10" Margin="16" VerticalAlignment="Top" HorizontalAlignment="Center" MaxWidth="560">
+					<TextBlock Text="{Binding LoadError}" Foreground="#f2d7d7" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" />
+				</Border>
 				<!-- Enrichment Progress Overlay -->
 				<Border IsVisible="{Binding IsEnriching}" Background="#DD1b2838" CornerRadius="4">
 					<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" Width="260">
