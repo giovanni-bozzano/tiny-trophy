@@ -9,8 +9,6 @@ public sealed class Game
 	// Directory containing the achievement files on disk, if known (e.g. Steam emulator save folder).
 	public string? FolderPath { get; set; }
 	public List<Achievement> Achievements { get; set; } = [];
-	public TimeSpan Playtime { get; set; }
-	public DateTime LastPlayed { get; set; }
 
 	public int UnlockedCount => Achievements.Count(a => a.IsUnlocked);
 	public int TotalCount => Achievements.Count;

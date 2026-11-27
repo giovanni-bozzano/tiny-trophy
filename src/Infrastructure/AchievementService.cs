@@ -195,9 +195,7 @@ public sealed class AchievementService(
 		ImageUri = game.ImageUri,
 		Source = game.Source,
 		FolderPath = game.FolderPath,
-		Achievements = [.. game.Achievements.Select(Copy)],
-		Playtime = game.Playtime,
-		LastPlayed = game.LastPlayed
+		Achievements = [.. game.Achievements.Select(Copy)]
 	};
 
 	private static Achievement Copy(Achievement achievement) => new()
