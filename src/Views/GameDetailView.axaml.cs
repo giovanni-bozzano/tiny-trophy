@@ -37,7 +37,16 @@ public partial class GameDetailView
 		if (topLevel?.Clipboard is null)
 			return;
 
-		await topLevel.Clipboard.SetTextAsync(viewModel.GameAppId);
+		try
+		{
+			await topLevel.Clipboard.SetTextAsync(viewModel.GameAppId);
+		}
+		catch
+		{
+			// Clipboard access can fail (for example on X11 without a clipboard manager). This runs from
+			// an async void handler, where an escaping exception would terminate the process.
+			return;
+		}
 
 		// Show a "Copied!" popup as feedback.
 		_copiedPopupResetCts?.Cancel();

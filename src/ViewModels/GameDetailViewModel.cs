@@ -198,8 +198,8 @@ public sealed partial class GameDetailViewModel
 		};
 
 		List<AchievementItemViewModel> list = [.. sorted];
-		List<AchievementItemViewModel> unlocked = [.. list.Where(a => a.IsUnlocked)];
-		List<AchievementItemViewModel> locked = [.. list.Where(a => !a.IsUnlocked).OrderBy(a => a.IsMasked)];
+		List<AchievementItemViewModel> unlocked = [.. list.Where(a => ShowUnlocked && a.IsUnlocked)];
+		List<AchievementItemViewModel> locked = [.. list.Where(a => ShowLocked && !a.IsUnlocked).OrderBy(a => a.IsMasked)];
 
 		UnlockedAchievements = new ObservableCollection<AchievementItemViewModel>(unlocked);
 		LockedAchievements = new ObservableCollection<AchievementItemViewModel>(locked);
@@ -296,7 +296,7 @@ public sealed class AchievementItemViewModel
 			_ => "#6b7c8d"
 		};
 	public bool IsRare => achievement.GlobalPercentage is > 0 and <= 10
-		|| achievement.TrophyType is "Platinum" or "Gold";
+		|| achievement.TrophyType is "p" or "g";
 	public bool IsHidden => achievement.IsHidden;
 }
 
