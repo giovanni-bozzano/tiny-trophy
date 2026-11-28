@@ -176,9 +176,16 @@ public sealed partial class HomeViewModel(
 
 			ApplyFilter();
 
-			// Done scanning, show the game list
+			// Done scanning. The list stays covered until the load is over: the scanned rows still
+			// carry bare AppIDs and no icons until enrichment has run
 			IsScanning = false;
 			IsLoading = false;
+			IsEnriching = TotalGameCount > 0;
+			if (IsEnriching)
+			{
+				LoadingProgress = 0;
+				LoadingStatus = $"Fetching metadata... (0/{TotalGameCount})";
+			}
 
 			// Enrichment needs Steam, so wait for the key check here rather than before the local scan
 			if (apiKeyValidation is not null)
@@ -190,9 +197,6 @@ public sealed partial class HomeViewModel(
 			}
 			else
 			{
-				IsEnriching = true;
-				LoadingProgress = 0;
-				LoadingStatus = $"Fetching metadata... (0/{TotalGameCount})";
 				Progress<int> progress = new(p =>
 				{
 					int done = (int)(p / 100.0 * TotalGameCount);

@@ -102,6 +102,35 @@ public sealed class HomeViewModelTests
 	}
 
 	[Fact]
+	public async Task ReloadGamesAsync_WhileTheKeyCheckIsPending_KeepsTheScannedRowsCovered()
+	{
+		TaskCompletionSource<ApiKeyValidationResult> validation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		FakeSteamApiService steamApi = new() { Validation = () => validation.Task };
+		Game game = new()
+		{
+			AppId = "1771300",
+			Achievements = [new Achievement { Id = "A", IsUnlocked = true }]
+		};
+		FakeAchievementService achievements = new(() => Task.FromResult<IReadOnlyList<Game>>([game]));
+		MainViewModel main = new(
+			achievements,
+			new FakeSettingsService { Settings = new AppSettings { SteamApiKey = "KEY" } },
+			steamApi);
+
+		Task loading = main.HomeViewModel.ReloadGamesAsync();
+		await WaitUntilAsync(() => achievements.ScanCalls == 1 && main.HomeViewModel.IsEnriching);
+
+		// The scan is done but the metadata is not, so the bare AppID rows are never revealed
+		Assert.False(main.HomeViewModel.IsListVisible);
+		Assert.Single(main.HomeViewModel.Games);
+
+		validation.SetResult(ApiKeyValidationResult.Valid);
+		await loading;
+
+		Assert.True(main.HomeViewModel.IsListVisible);
+	}
+
+	[Fact]
 	public async Task ReloadGamesAsync_WhenTheScanFails_ShowsTheError()
 	{
 		FakeAchievementService achievements = new(() => throw new InvalidOperationException("scanner exploded"));
