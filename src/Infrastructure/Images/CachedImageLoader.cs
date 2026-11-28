@@ -57,41 +57,68 @@ public sealed class CachedImageLoader
 
 	/// <remarks>
 	/// The returned lease owns the bitmap: the caller takes it over and disposes it along with the control.
+	/// A cancelled request stops waiting for the download and does not decode at all, so a row that
+	/// scrolls past leaves no bitmap behind to be collected later.
 	/// </remarks>
 	public async Task<IImageLease?> LoadAsync(
 		ImageLoadRequest request,
 		CancellationToken cancellationToken = default)
 	{
-		Bitmap? bitmap = await LoadBitmapAsync(request.Source);
+		string uri = request.Source;
+		if (string.IsNullOrWhiteSpace(uri))
+			return null;
+
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// Both callers hand the request in from the UI thread, and reading plus decoding a stored PNG is
+		// blocking work, so it runs on the pool rather than stalling the frame it was requested in
+		Bitmap? bitmap = await Task.Run(
+			() => LoadBitmapAsync(uri, cancellationToken),
+			cancellationToken).ConfigureAwait(false);
+
+		if (cancellationToken.IsCancellationRequested)
+		{
+			// Superseded while decoding, and nothing else will ever own this bitmap
+			bitmap?.Dispose();
+			return null;
+		}
+
 		return bitmap is null ? null : ImageLease.Owned(bitmap);
 	}
 
 	public void Dispose() => _httpClient.Dispose();
 
-	private async Task<Bitmap?> LoadBitmapAsync(string uri)
+	/// <remarks>
+	/// Runs on a pool thread. Waiting for the download is cancellable; the download itself is shared by
+	/// every control asking for the same URI, so it runs to completion and leaves the file for them.
+	/// </remarks>
+	private async Task<Bitmap?> LoadBitmapAsync(
+		string uri,
+		CancellationToken cancellationToken)
 	{
-		if (string.IsNullOrWhiteSpace(uri))
-			return null;
-
-		Bitmap? cached = await LoadFromGlobalCache(uri);
+		Bitmap? cached = LoadFromGlobalCache(uri);
 		if (cached is not null)
 			return cached;
 
-		await DownloadOnceAsync(uri);
+		await DownloadOnceAsync(uri).WaitAsync(cancellationToken).ConfigureAwait(false);
 
-		return await LoadFromGlobalCache(uri);
+		// Checked before decoding rather than after: the decode allocates the pixels this request exists
+		// to avoid once nobody is going to show them
+		cancellationToken.ThrowIfCancellationRequested();
+
+		return LoadFromGlobalCache(uri);
 	}
 
-	private Task<Bitmap?> LoadFromGlobalCache(string uri)
+	private Bitmap? LoadFromGlobalCache(string uri)
 	{
 		string cachePath = GetCachePath(uri);
 		if (!File.Exists(cachePath))
-			return Task.FromResult<Bitmap?>(null);
+			return null;
 		try
 		{
 			// Already resized and stored at _targetWidth, so there is nothing to do but read it
 			using FileStream stream = File.OpenRead(cachePath);
-			return Task.FromResult<Bitmap?>(new Bitmap(stream));
+			return new Bitmap(stream);
 		}
 		catch
 		{
@@ -102,7 +129,7 @@ public sealed class CachedImageLoader
 			}
 			catch { }
 
-			return Task.FromResult<Bitmap?>(null);
+			return null;
 		}
 	}
 

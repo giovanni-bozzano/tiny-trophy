@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
+using System.Runtime.CompilerServices;
 
 namespace TinyTrophy.Infrastructure.Images;
 
@@ -11,6 +12,10 @@ public sealed class ImageSourceDisposer
 		AvaloniaProperty.RegisterAttached<ImageSourceDisposer, Image, bool>(
 			"DisposeSource",
 			defaultValue: false);
+
+	// The subscription that disposes a replaced source, held per Image so it can be released instead of
+	// staying active for the life of the control.
+	private static readonly ConditionalWeakTable<Image, IDisposable> s_sourceSubscriptions = new();
 
 	public static bool GetDisposeSource(Image element) => element.GetValue(DisposeSourceProperty);
 	public static void SetDisposeSource(Image element, bool value) => element.SetValue(DisposeSourceProperty, value);
@@ -28,12 +33,20 @@ public sealed class ImageSourceDisposer
 		{
 			image.DetachedFromVisualTree += Image_DetachedFromVisualTree;
 			image.Unloaded += Image_Unloaded;
-			image.GetPropertyChangedObservable(Image.SourceProperty).Subscribe(new SourceChangedObserver());
+			s_sourceSubscriptions.AddOrUpdate(
+				image,
+				image.GetPropertyChangedObservable(Image.SourceProperty).Subscribe(new SourceChangedObserver()));
 		}
 		else
 		{
 			image.DetachedFromVisualTree -= Image_DetachedFromVisualTree;
 			image.Unloaded -= Image_Unloaded;
+
+			if (s_sourceSubscriptions.TryGetValue(image, out IDisposable? subscription))
+			{
+				subscription.Dispose();
+				s_sourceSubscriptions.Remove(image);
+			}
 		}
 	}
 

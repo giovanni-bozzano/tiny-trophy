@@ -59,9 +59,13 @@ at 120 px (2x their drawn width for HiDPI). Each loader:
 - Returns a lease whose bitmap belongs to the control that asked for it. Nothing keeps decoded
   bitmaps: lists realize only visible rows, so the app holds roughly a screenful.
 
-`SizedImageLoader` cancels a superseded load and disposes a lease that arrives after cancellation.
-`ImageSourceDisposer` disposes the bitmap when the `Image` unloads, detaches, or replaces its
-source. Both exist because a decoded bitmap lives in unmanaged memory the GC barely accounts for.
+`CachedImageLoader` refuses a cancelled request before decoding and reads and decodes on the thread
+pool, so a row that is scrolled past never becomes a bitmap and no cover blocks a frame.
+`SizedImageLoader` cancels a superseded or detached load, disposes a lease that arrives after
+cancellation, and keeps its per-control state in a weak table, so a load that never finishes cannot
+pin a control. `ImageSourceDisposer` disposes the bitmap when the `Image` unloads, detaches, or
+replaces its source. They exist because a decoded bitmap lives in unmanaged memory the GC barely
+accounts for.
 
 ## Update flag
 
